@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# build output of build.js (index.html is committed as the deployable artifact)
+dist/

@@ -1,0 +1,161 @@
+
+<div class="topbar">
+  <div class="brand">
+    <div class="eyebrow">Illustrative business case · not SpaceX guidance</div>
+    <h1>SpaceX P&amp;L &amp; Balance Sheet — Interactive AI Build-Out Model</h1>
+    <div class="sub">Actuals through Q2 2026 (SpaceX earnings release, Aug 4 2026), quarterly forecast to Q4 2028. Adjust the AI compute build-out, its pricing basis, and capex per GW in the panel — Space, Connectivity and everything below the AI line hold at the model's base-case assumptions.</div>
+  </div>
+  <div class="meta">$ in millions unless noted<br>Source: SpaceX Q2 2026 earnings release</div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+
+    <div class="preset-box">
+      <div class="group-eyebrow">Step 1 &middot; optional shortcut</div>
+      <div class="panel-title" style="margin-top:2px;">Load a preset</div>
+      <div class="panel-hint">Fills in the rate &amp; capex boxes below with one of the model's three built-in cases. The GW build-out is untouched — set that yourself.</div>
+      <div class="preset-row">
+        <button class="btn small" data-case="1">Case 1 · Conservative</button>
+        <button class="btn small" data-case="2">Case 2 · Mgmt-consistent</button>
+        <button class="btn small" data-case="3">Case 3 · High-capex</button>
+      </div>
+    </div>
+
+    <div class="flow-arrow" aria-hidden="true">
+      <svg width="14" height="20" viewBox="0 0 14 20"><path d="M7 0 V16 M1 11 L7 17 L13 11" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>prefills the fields below — every cell stays yours to edit</span>
+    </div>
+
+    <div class="custom-box">
+      <div class="group-eyebrow">Step 2 &middot; your scenario</div>
+      <div class="group-title">Custom scenario inputs</div>
+      <div class="group-hint">These three boxes are what actually drive every number in the model. Type into any cell.</div>
+
+      <div class="panel">
+        <div class="panel-title">AI compute build-out</div>
+        <div class="panel-hint">Nameplate compute, period end (GW). Actual at Q226: 1.4 GW.</div>
+        <div class="qtable" id="tbl-gw"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="panel">
+        <div class="panel-title">AI revenue per GW <span class="unit-badge">$mm &middot; per year</span></div>
+        <div class="toggle" id="mode-toggle">
+          <button data-mode="longterm" class="active">Long-term contract</button>
+          <button data-mode="spot">Spot market</button>
+        </div>
+        <div class="panel-hint" id="mode-hint"></div>
+        <div class="qtable" id="tbl-rate"></div>
+        <div id="spot-extra" style="display:none; flex-direction:column; gap:10px; margin-top:4px;">
+          <div class="field">
+            <div class="field-label"><span>Long-term steady-state rate <span class="unit-badge">$mm/yr</span></span><span class="num" id="ltr-val"></span></div>
+            <input type="number" id="ltr-input" step="200" />
+          </div>
+          <div class="field">
+            <div class="field-label"><span>Convergence period</span><span class="num" id="conv-val"></span></div>
+            <input type="range" id="conv-input" min="3" max="5" step="0.5" />
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="panel">
+        <div class="panel-title">AI capex per incremental GW <span class="unit-badge">$bn</span></div>
+        <div class="panel-hint">$bn of capex per GW added that quarter (a single GW build runs $20&ndash;90bn). Drives cash burn and debt draws below.</div>
+        <div class="qtable" id="tbl-capex"></div>
+      </div>
+    </div>
+
+    <button class="btn ghost" id="reset-btn">Reset all to Case 1 defaults</button>
+  </aside>
+
+  <main class="main">
+
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Revenue by segment</h2>
+        <div class="card-note">Q225 – Q428, $mm/quarter</div>
+      </div>
+      <div class="charts-row">
+        <div>
+          <div class="legend" style="margin-bottom:6px;">
+            <span class="legend-item"><span class="swatch" style="background:var(--space)"></span>Space</span>
+            <span class="legend-item"><span class="swatch" style="background:var(--connectivity)"></span>Connectivity</span>
+            <span class="legend-item"><span class="swatch" style="background:var(--ai)"></span>AI</span>
+          </div>
+          <div id="chart-revenue"></div>
+        </div>
+        <div>
+          <div class="legend" style="margin-bottom:6px;">
+            <span class="legend-item"><span class="swatch" style="background:var(--accent)"></span>Net income (loss)</span>
+          </div>
+          <div id="chart-netincome"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>AI compute build-out &amp; realized pricing</h2>
+        <div class="card-note">Forecast quarters, Q326 – Q428</div>
+      </div>
+      <div class="mini-charts">
+        <div>
+          <div class="legend" style="margin-bottom:6px;"><span class="legend-item"><span class="swatch" style="background:var(--ai)"></span>Nameplate GW, period end</span></div>
+          <div id="chart-gw"></div>
+        </div>
+        <div>
+          <div class="legend" style="margin-bottom:6px;"><span class="legend-item"><span class="swatch" style="background:var(--accent)"></span>Realized AI $/GW/yr (blended)</span></div>
+          <div id="chart-rate"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Consolidated P&amp;L</h2>
+        <div class="card-note">$mm · shaded columns are reported actuals</div>
+      </div>
+      <div class="table-scroll"><table class="fin hist3" id="table-pl"></table></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Balance sheet (simplified projection)</h2>
+        <div class="card-note">$mm · actual column at Jun 30, 2026</div>
+      </div>
+      <div class="table-scroll"><table class="fin hist1" id="table-bs"></table></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Comments &amp; suggestions</h2>
+        <div class="card-note">Sorted by score</div>
+      </div>
+      <div id="comments-root">
+        <div class="comments-loading">Loading comments…</div>
+      </div>
+    </section>
+
+    <footer class="notes">
+      <h3>How this works</h3>
+      <ul>
+        <li><b>Long-term contract</b> mode applies your entered $/GW rate uniformly to the entire revenue-generating GW base each quarter — a stable, blended contract price, same mechanic the underlying model uses.</li>
+        <li><b>Spot market</b> mode treats your entered rate as the price new capacity is sold at when it comes online that quarter. Each quarter's incremental GW becomes its own "vintage," and its price glides linearly toward the long-term steady-state rate over your chosen convergence window (3–5 years). The blended rate you see is the GW-weighted average across all vintages live that quarter — it can stay above or below the long-term rate for a while if new, richly-priced capacity keeps arriving faster than old vintages converge.</li>
+        <li>Space, Connectivity, AI cost ratios, D&amp;A, financing and below-the-line items hold at the model's base-case schedule and are not user-editable here.</li>
+        <li>Depreciation on new capex starts 2 quarters after spend (build/ramp lag) and runs at 0.7×(1/20)+0.3×(1/56) of that quarter's total capex per quarter thereafter (70% IT equipment over 5 years, 30% facility over 14 years), consistent with the source model.</li>
+        <li>Cash, debt and interest are a full roll-forward: new debt draws automatically whenever cash would fall under the $15,000mm minimum buffer, at 6.5%/yr; existing $39,364mm of debt accrues at 5.5%/yr; cash & securities earn 4%/yr.</li>
+        <li>The balance sheet holds "other assets" and "other liabilities" flat at their Jun 30, 2026 actual level (no working-capital or deferred-revenue modeling) and solves equity as the balancing plug; the memo row below it shows how much of the equity movement is net income versus other reconciling items (chiefly the model's $3,681mm/quarter legacy non-cash add-back, which increases cash but isn't charged against forecast-period net income).</li>
+        <li>This is an illustrative business-case model, not SpaceX guidance or analyst consensus. All forecast figures are scenario outputs of the inputs you set above.</li>
+      </ul>
+    </footer>
+  </main>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+

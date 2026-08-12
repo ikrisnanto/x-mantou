@@ -1,16 +1,58 @@
-# React + Vite
+# x-mantou.com
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interactive SpaceX P&L and balance-sheet model, plus a comment board with voting.
+Deployed on Cloudflare Pages at [x-mantou.com](https://x-mantou.com).
 
-Currently, two official plugins are available:
+## Where things live
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```
+src/dashboard/
+  assumptions.js   <- EDIT THIS to change the model. Every figure lives here.
+  dashboard.js        engine (quarterly P&L, balance sheet, financing) + charts + comments UI
+  body.html           page markup
+  styles.css          all styling, light + dark
+build.js              assembles the four files above into one self-contained index.html
+index.html            BUILD OUTPUT — do not edit by hand, it is overwritten
+functions/api/        Cloudflare Pages Functions: comments + voting + admin delete
+shared/security.js    IP hashing, per-IP rate limits, Turnstile verification
+schema.sql            D1 tables
+reference/            the original spreadsheet + generator script (not authoritative)
+```
 
-## React Compiler
+## Changing the model
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Edit `src/dashboard/assumptions.js`.
+2. `npm run build`
+3. `npx wrangler pages deploy dist --project-name=x-mantou --commit-dirty=true`
 
-## Expanding the Oxlint configuration
+Forecast arrays must keep exactly 10 entries (Q326 → Q428). Ratios are fractions,
+money is $ millions per quarter unless the name says otherwise.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+The output has to stay a single self-contained file — Pages serves it directly and
+the published Artifact copy blocks external scripts — which is why `build.js`
+concatenates rather than bundles.
+
+## Backend
+
+D1 database `x-mantou-comments`. Secrets are set per-project, and **Pages only picks
+up a secret on the next deployment**, so always redeploy after changing one:
+
+```bash
+npx wrangler pages secret put ADMIN_TOKEN --project-name=x-mantou
+npm run build && npx wrangler pages deploy dist --project-name=x-mantou
+```
+
+| Secret | Purpose |
+|---|---|
+| `ADMIN_TOKEN` | Unlocks comment deletion at `/#admin` |
+| `TURNSTILE_SECRET` / `TURNSTILE_SITEKEY` | Bot check on comment posting |
+| `RATE_SALT` | Salt for the hashed-IP rate limiter (raw IPs are never stored) |
+
+Limits: 5 comments and 60 votes per IP per 10 minutes; 10 admin attempts per 10
+minutes. Votes are keyed to a server-derived IP hash, not a client-supplied id.
+
+## Deploying
+
+`git push` triggers `.github/workflows/deploy.yml`, which needs repo secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Deploying by hand with the
+wrangler command above works regardless.
