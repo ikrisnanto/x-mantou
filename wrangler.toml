@@ -1,0 +1,7 @@
+name = "x-mantou"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "x_mantou_comments"
+database_name = "x-mantou-comments"
+database_id = "20162c3f-370c-4df9-991c-36353b746bba"

@@ -166,7 +166,7 @@
   .card-head .card-note{ font-size:13.5px; color:var(--text-faint); }
 
   .charts-row{ display:grid; grid-template-columns:1.3fr 1fr; gap:14px; }
-  @media (max-width:1080px){ .charts-row{ grid-template-columns:1fr; } }
+  @media (max-width:1300px){ .charts-row{ grid-template-columns:1fr; } }
   .mini-charts{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   @media (max-width:640px){ .mini-charts{ grid-template-columns:1fr; } }
 
@@ -215,6 +215,49 @@
   table.fin.hist3 tbody td:nth-child(2), table.fin.hist3 tbody td:nth-child(3), table.fin.hist3 tbody td:nth-child(4){ background:var(--surface-2); }
   table.fin.hist1 tbody td:nth-child(2){ background:var(--surface-2); }
 
+  .comments-loading, .comments-error, .comments-empty{ font-size:13.5px; color:var(--text-faint); padding:8px 2px; }
+  .comments-error{ color:var(--bad); }
+  .comments-fallback{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:16px;
+    font-size:13.5px; color:var(--text-dim); line-height:1.55;
+  }
+  .comments-fallback a{ font-weight:700; }
+
+  .comment-form{ display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
+  .comment-form-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .comment-form input[type=text]{
+    font-family:var(--sans); font-size:13.5px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:7px; padding:8px 10px; color:var(--text); width:220px; max-width:100%;
+  }
+  .comment-form textarea{
+    font-family:var(--sans); font-size:13.5px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:7px; padding:9px 11px; color:var(--text); width:100%; min-height:64px; resize:vertical;
+    line-height:1.5;
+  }
+  .comment-form input:focus-visible, .comment-form textarea:focus-visible{ outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
+  .comment-form-footer{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .comment-char-count{ font-size:11.5px; color:var(--text-faint); font-family:var(--mono); }
+  .comment-submit-error{ font-size:12.5px; color:var(--bad); }
+
+  .comment-list{ display:flex; flex-direction:column; gap:2px; }
+  .comment-item{ display:flex; gap:12px; padding:14px 2px; border-bottom:1px solid var(--border); }
+  .comment-item:last-child{ border-bottom:none; }
+  .comment-votes{ display:flex; flex-direction:column; align-items:center; gap:2px; flex:none; width:38px; }
+  .vote-btn{
+    width:30px; height:26px; display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:6px; cursor:pointer;
+    color:var(--text-dim); padding:0;
+  }
+  .vote-btn:hover{ background:var(--surface-3); }
+  .vote-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .vote-btn.up.active{ background:color-mix(in srgb, var(--good) 20%, transparent); border-color:var(--good); color:var(--good); }
+  .vote-btn.down.active{ background:color-mix(in srgb, var(--bad) 20%, transparent); border-color:var(--bad); color:var(--bad); }
+  .vote-score{ font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+  .comment-body-col{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+  .comment-meta{ display:flex; gap:8px; align-items:baseline; font-size:12.5px; }
+  .comment-author{ font-weight:700; color:var(--text); }
+  .comment-time{ color:var(--text-faint); font-family:var(--mono); font-size:11.5px; }
+  .comment-text{ font-size:13.5px; color:var(--text-dim); line-height:1.55; white-space:pre-wrap; word-break:break-word; }
 
   footer.notes{
     font-size:13.5px; color:var(--text-faint); line-height:1.6; padding:6px 4px 30px; max-width:920px;
@@ -263,7 +306,7 @@
 
       <div class="panel">
         <div class="panel-title">AI compute build-out</div>
-        <div class="panel-hint">Nameplate compute, period end (GW). Actual at Q2'26A: 1.4 GW.</div>
+        <div class="panel-hint">Nameplate compute, period end (GW). Actual at Q226: 1.4 GW.</div>
         <div class="qtable" id="tbl-gw"></div>
       </div>
 
@@ -308,7 +351,7 @@
     <section class="card">
       <div class="card-head">
         <h2>Revenue by segment</h2>
-        <div class="card-note">Q2'25A – Q4'28E, $mm/quarter</div>
+        <div class="card-note">Q225 – Q428, $mm/quarter</div>
       </div>
       <div class="charts-row">
         <div>
@@ -331,7 +374,7 @@
     <section class="card">
       <div class="card-head">
         <h2>AI compute build-out &amp; realized pricing</h2>
-        <div class="card-note">Forecast quarters, Q3'26E – Q4'28E</div>
+        <div class="card-note">Forecast quarters, Q326 – Q428</div>
       </div>
       <div class="mini-charts">
         <div>
@@ -361,6 +404,16 @@
       <div class="table-scroll"><table class="fin hist1" id="table-bs"></table></div>
     </section>
 
+    <section class="card">
+      <div class="card-head">
+        <h2>Comments &amp; suggestions</h2>
+        <div class="card-note">Sorted by score</div>
+      </div>
+      <div id="comments-root">
+        <div class="comments-loading">Loading comments…</div>
+      </div>
+    </section>
+
     <footer class="notes">
       <h3>How this works</h3>
       <ul>
@@ -383,8 +436,8 @@
 "use strict";
 
 /* ============================= ENGINE ============================= */
-const Q = ["Q3'26E","Q4'26E","Q1'27E","Q2'27E","Q3'27E","Q4'27E","Q1'28E","Q2'28E","Q3'28E","Q4'28E"];
-const HQ = ["Q2'25A","Q1'26A","Q2'26A"];
+const Q = ["Q326","Q426","Q127","Q227","Q327","Q427","Q128","Q228","Q328","Q428"];
+const HQ = ["Q225","Q126","Q226"];
 const N = 10;
 
 const FIXED = {
@@ -788,9 +841,14 @@ function svgEl(tag, attrs){
 }
 function colorVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
+function measureW(container, fallback){
+  const w = container.getBoundingClientRect().width;
+  return Math.round(w>40 ? w : (fallback||520));
+}
+
 function stackedBarChart(container, labels, series, opts){
   container.innerHTML='';
-  const W = opts.width||520, H = opts.height||220;
+  const W = measureW(container, opts.width), H = opts.height||220;
   const padL=44, padR=8, padT=10, padB=22;
   const plotW = W-padL-padR, plotH = H-padT-padB;
   const n = labels.length;
@@ -817,20 +875,20 @@ function stackedBarChart(container, labels, series, opts){
       const h = (v/niceMax)*plotH;
       const y = yCursor-h;
       const rect = svgEl('rect',{x:x, y:y, width:bw, height:Math.max(0,h-1), rx:2,
-        fill: histFlag? colorVar('--text-faint') : se.color, opacity: histFlag? 0.45:1});
+        fill: se.color, opacity: histFlag? 1 : 0.42});
       svg.appendChild(rect);
       yCursor = y;
     });
     const hit = svgEl('rect',{class:'hit', x:padL+step*i, y:padT, width:step, height:plotH});
     hit.addEventListener('mousemove', (ev)=>{
-      let rows = series.map(se=>'<div class="tt-row"><span class="k"><span class="swatch" style="background:'+(histFlag?colorVar('--text-faint'):se.color)+'"></span>'+se.label+'</span><span>'+fmt0(se.values[i])+'</span></div>').join('');
-      showTooltip('<div class="tt-title">'+labels[i]+(histFlag?' · actual':'')+'</div>'+rows+'<div class="tt-row tt-total"><span>Total</span><span>'+fmt0(totals[i])+'</span></div>', ev.clientX, ev.clientY);
+      let rows = series.map(se=>'<div class="tt-row"><span class="k"><span class="swatch" style="background:'+se.color+'; opacity:'+(histFlag?1:0.55)+'"></span>'+se.label+'</span><span>'+fmt0(se.values[i])+'</span></div>').join('');
+      showTooltip('<div class="tt-title">'+labels[i]+(histFlag?' · actual':' · projected')+'</div>'+rows+'<div class="tt-row tt-total"><span>Total</span><span>'+fmt0(totals[i])+'</span></div>', ev.clientX, ev.clientY);
     });
     hit.addEventListener('mouseleave', hideTooltip);
     svg.appendChild(hit);
     if(i%1===0){
       const lt = svgEl('text',{class:'axis-label', x:x+bw/2, y:H-6, 'text-anchor':'middle'});
-      lt.textContent = labels[i].replace("Q","").replace("'","’"); svg.appendChild(lt);
+      lt.textContent = labels[i]; svg.appendChild(lt);
     }
   }
   container.appendChild(svg);
@@ -838,10 +896,11 @@ function stackedBarChart(container, labels, series, opts){
 
 function lineChart(container, labels, values, opts){
   container.innerHTML='';
-  const W = opts.width||520, H = opts.height||220;
+  const W = measureW(container, opts.width), H = opts.height||220;
   const padL=52, padR=10, padT=14, padB=22;
   const plotW = W-padL-padR, plotH = H-padT-padB;
   const n = labels.length;
+  const histCount = opts.histCount||0;
   const minV = Math.min(0, ...values), maxV = Math.max(0, ...values);
   const niceMax = niceCeil(Math.max(Math.abs(minV), Math.abs(maxV)));
   const scaleY = v => padT + plotH - ((v+niceMax)/(niceMax*2))*plotH;
@@ -856,28 +915,37 @@ function lineChart(container, labels, values, opts){
   }
   const step = plotW/(n-1||1);
   const pts = values.map((v,i)=>[padL+step*i, scaleY(v)]);
-  let d = 'M'+pts.map(p=>p[0]+' '+p[1]).join(' L');
-  svg.appendChild(svgEl('path',{d:d, fill:'none', stroke:opts.color||colorVar('--accent'), 'stroke-width':2}));
+  const lineColor = opts.color||colorVar('--accent');
+  if(histCount>0){
+    const histPts = pts.slice(0, histCount);
+    const dh = 'M'+histPts.map(p=>p[0]+' '+p[1]).join(' L');
+    svg.appendChild(svgEl('path',{d:dh, fill:'none', stroke:lineColor, 'stroke-width':2}));
+  }
+  const fcPts = pts.slice(Math.max(0,histCount-1));
+  if(fcPts.length>1){
+    const df = 'M'+fcPts.map(p=>p[0]+' '+p[1]).join(' L');
+    svg.appendChild(svgEl('path',{d:df, fill:'none', stroke:lineColor, 'stroke-width':2, opacity:0.42}));
+  }
   pts.forEach((p,i)=>{
-    const histFlag = opts.histCount && i<opts.histCount;
-    const c = values[i]<0 ? colorVar('--bad') : (opts.color||colorVar('--accent'));
-    svg.appendChild(svgEl('circle',{cx:p[0], cy:p[1], r: i===n-1?4:2.6, fill: histFlag?colorVar('--text-faint'):c}));
+    const histFlag = i<histCount;
+    const c = values[i]<0 ? colorVar('--bad') : lineColor;
+    svg.appendChild(svgEl('circle',{cx:p[0], cy:p[1], r: i===n-1?4:2.6, fill:c, opacity: histFlag?1:0.55}));
     const hit = svgEl('rect',{class:'hit', x:p[0]-step/2, y:padT, width:step, height:plotH});
     hit.addEventListener('mousemove', (ev)=>{
-      showTooltip('<div class="tt-title">'+labels[i]+(histFlag?' · actual':'')+'</div><div class="tt-row"><span>'+(opts.label||'Value')+'</span><span>'+fmt0(values[i])+'</span></div>', ev.clientX, ev.clientY);
+      showTooltip('<div class="tt-title">'+labels[i]+(opts.histCount? (histFlag?' · actual':' · projected'):'')+'</div><div class="tt-row"><span>'+(opts.label||'Value')+'</span><span>'+fmt0(values[i])+'</span></div>', ev.clientX, ev.clientY);
     });
     hit.addEventListener('mouseleave', hideTooltip);
     svg.appendChild(hit);
     const lt = svgEl('text',{class:'axis-label', x:p[0], y:H-6, 'text-anchor':'middle'});
-    lt.textContent = labels[i].replace("Q","").replace("'","’"); svg.appendChild(lt);
+    lt.textContent = labels[i]; svg.appendChild(lt);
   });
   container.appendChild(svg);
 }
 
 function barChartSimple(container, labels, values, opts){
   container.innerHTML='';
-  const W = opts.width||360, H = opts.height||200;
-  const padL=40, padR=8, padT=10, padB=22;
+  const W = measureW(container, opts.width), H = opts.height||200;
+  const padL=46, padR=8, padT=10, padB=22;
   const plotW=W-padL-padR, plotH=H-padT-padB;
   const n=labels.length;
   const maxV = niceCeil(Math.max(1,...values));
@@ -899,7 +967,7 @@ function barChartSimple(container, labels, values, opts){
     hit.addEventListener('mouseleave', hideTooltip);
     svg.appendChild(hit);
     if(i%2===0 || n<=6){
-      const lt=svgEl('text',{class:'axis-label', x:x+bw/2, y:H-6, 'text-anchor':'middle'}); lt.textContent=labels[i].replace("Q","").replace("'","’"); svg.appendChild(lt);
+      const lt=svgEl('text',{class:'axis-label', x:x+bw/2, y:H-6, 'text-anchor':'middle'}); lt.textContent=labels[i]; svg.appendChild(lt);
     }
   });
   container.appendChild(svg);
@@ -932,14 +1000,14 @@ function renderKPIs(m){
   const paybackQ426 = state.capexGWTable[1] / ((state.mode==='longterm'?state.rateTable[1]:state.spotTable[1])*4);
 
   const cards = [
-    { label:"Total revenue · Q4'28E", value: fmtAutoUSD(totalRevEnd), sub: (totalRevEnd/m.total.revenue[0]).toFixed(1)+'x vs Q3’26E' },
-    { label:"Net income (loss) · Q4'28E", value: fmtAutoUSD(niEnd), sub: pill(niEnd>=0?'Profitable':'Loss-making', niEnd>=0?'good':'bad') },
-    { label:"AI revenue · Q4'28E", value: fmtAutoUSD(aiRevEnd), sub: fmtPct(aiShare,0)+' of total revenue' },
-    { label:"AI revenue-generating GW · Q4'28E", value: fmtGW(gwEnd), sub: fmtGW(m.ai.nameplateGW[lastIdx])+' nameplate' },
-    { label:"Cash &amp; securities · Q4'28E", value: fmtAutoUSD(cashEnd), sub: cashEnd<=15001? pill('At minimum buffer','warn') : pill('Above buffer','good') },
-    { label:"Total debt outstanding · Q4'28E", value: fmtAutoUSD(debtEnd), sub: fmtAutoUSD(debtEnd-39364)+' newly raised' },
+    { label:"Total revenue · Q428", value: fmtAutoUSD(totalRevEnd), sub: (totalRevEnd/m.total.revenue[0]).toFixed(1)+'x vs Q326' },
+    { label:"Net income (loss) · Q428", value: fmtAutoUSD(niEnd), sub: pill(niEnd>=0?'Profitable':'Loss-making', niEnd>=0?'good':'bad') },
+    { label:"AI revenue · Q428", value: fmtAutoUSD(aiRevEnd), sub: fmtPct(aiShare,0)+' of total revenue' },
+    { label:"AI revenue-generating GW · Q428", value: fmtGW(gwEnd), sub: fmtGW(m.ai.nameplateGW[lastIdx])+' nameplate' },
+    { label:"Cash &amp; securities · Q428", value: fmtAutoUSD(cashEnd), sub: cashEnd<=15001? pill('At minimum buffer','warn') : pill('Above buffer','good') },
+    { label:"Total debt outstanding · Q428", value: fmtAutoUSD(debtEnd), sub: fmtAutoUSD(debtEnd-39364)+' newly raised' },
     { label:"ARR run-rate · Dec 2026E", value: fmtAutoUSD(arrDec26), sub: arrGap>=0? pill('Above $100B guide','good') : pill(fmtAutoUSD(Math.abs(arrGap))+' short of $100B','warn') },
-    { label:"New-capacity payback · Q4'26E", value: paybackQ426.toFixed(2)+' yrs', sub: paybackQ426<=1? pill('Meets <1yr guidance','good') : pill('Above 1yr guidance','warn') }
+    { label:"New-capacity payback · Q426", value: paybackQ426.toFixed(2)+' yrs', sub: paybackQ426<=1? pill('Meets <1yr guidance','good') : pill('Above 1yr guidance','warn') }
   ];
   grid.innerHTML = cards.map(c=>
     '<div class="kpi"><div class="kpi-label">'+c.label+'</div><div class="kpi-value num">'+c.value+'</div><div class="kpi-sub">'+c.sub+'</div></div>'
@@ -1056,8 +1124,8 @@ function renderAll(){
   lineChart(document.getElementById('chart-netincome'), revLabels, FIXED.historical.netIncome.concat(m.total.netIncome),
     {histCount:3, width:420, height:230, label:'Net income'});
 
-  barChartSimple(document.getElementById('chart-gw'), Q, m.ai.nameplateGW, {color:colorVar('--ai'), label:'Nameplate GW', fmt:v=>v.toFixed(1)+' GW', width:340, height:190});
-  barChartSimple(document.getElementById('chart-rate'), Q, m.ai.effRate.map(v=>v*4), {color:colorVar('--accent'), label:'$mm/GW/yr', fmt:v=>'$'+Math.round(v).toLocaleString(), width:340, height:190});
+  barChartSimple(document.getElementById('chart-gw'), Q, m.ai.nameplateGW, {color:colorVar('--ai'), label:'Nameplate GW', fmt:v=>Math.round(v)+' GW', width:340, height:190});
+  barChartSimple(document.getElementById('chart-rate'), Q, m.ai.effRate.map(v=>v*4), {color:colorVar('--accent'), label:'$B/GW/yr', fmt:v=>'$'+(v/1000).toFixed(1)+'B', width:340, height:190});
 
   renderPLTable(m);
   renderBSTable(m);
@@ -1066,6 +1134,153 @@ function renderAll(){
 buildSidebar();
 renderAll();
 window.addEventListener('resize', renderAll);
+
+/* ============================= COMMENTS ============================= */
+(function(){
+  const root = document.getElementById('comments-root');
+  const API = '/api/comments';
+
+  function getVoterId(){
+    let id = localStorage.getItem('xmantou_voter_id');
+    if(!id){
+      id = (crypto.randomUUID ? crypto.randomUUID() : 'v-'+Math.random().toString(36).slice(2)+Date.now());
+      localStorage.setItem('xmantou_voter_id', id);
+    }
+    return id;
+  }
+  function getMyVotes(){
+    try { return JSON.parse(localStorage.getItem('xmantou_my_votes')||'{}'); } catch { return {}; }
+  }
+  function setMyVote(commentId, direction){
+    const v = getMyVotes();
+    if(direction===0) delete v[commentId]; else v[commentId] = direction;
+    localStorage.setItem('xmantou_my_votes', JSON.stringify(v));
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function timeAgo(iso){
+    const d = new Date(iso+(iso.endsWith('Z')?'':'Z'));
+    const s = Math.max(1, Math.floor((Date.now()-d.getTime())/1000));
+    if(s<60) return s+'s ago';
+    const m = Math.floor(s/60); if(m<60) return m+'m ago';
+    const h = Math.floor(m/60); if(h<24) return h+'h ago';
+    const dd = Math.floor(h/24); if(dd<30) return dd+'d ago';
+    return d.toLocaleDateString();
+  }
+
+  function renderFallback(){
+    root.innerHTML = '<div class="comments-fallback">Comments &amp; voting need the live backend on <a href="https://x-mantou.com" target="_blank" rel="noopener">x-mantou.com</a> — they\'re not available on this preview/artifact link.</div>';
+  }
+
+  function renderComments(list){
+    const myVotes = getMyVotes();
+    const formHtml =
+      '<form class="comment-form" id="comment-form">'+
+        '<div class="comment-form-row"><input type="text" id="comment-author" maxlength="60" placeholder="Name (optional)"></div>'+
+        '<textarea id="comment-body" maxlength="2000" placeholder="Add a comment or suggestion…" required></textarea>'+
+        '<div class="comment-form-footer">'+
+          '<span class="comment-char-count" id="comment-char-count">0 / 2000</span>'+
+          '<span style="display:flex; align-items:center; gap:10px;">'+
+            '<span class="comment-submit-error" id="comment-submit-error"></span>'+
+            '<button type="submit" class="btn primary small">Post</button>'+
+          '</span>'+
+        '</div>'+
+      '</form>';
+
+    const listHtml = list.length===0
+      ? '<div class="comments-empty">No comments yet — be the first.</div>'
+      : '<div class="comment-list">'+list.map(c=>{
+          const mine = myVotes[c.id]||0;
+          const score = c.upvotes - c.downvotes;
+          return '<div class="comment-item" data-id="'+c.id+'">'+
+            '<div class="comment-votes">'+
+              '<button class="vote-btn up'+(mine===1?' active':'')+'" data-dir="1" aria-label="Upvote" aria-pressed="'+(mine===1)+'">'+
+                '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 2 L10 8 L2 8 Z" fill="currentColor"/></svg>'+
+              '</button>'+
+              '<span class="vote-score">'+score+'</span>'+
+              '<button class="vote-btn down'+(mine===-1?' active':'')+'" data-dir="-1" aria-label="Downvote" aria-pressed="'+(mine===-1)+'">'+
+                '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 10 L2 4 L10 4 Z" fill="currentColor"/></svg>'+
+              '</button>'+
+            '</div>'+
+            '<div class="comment-body-col">'+
+              '<div class="comment-meta"><span class="comment-author">'+escapeHtml(c.author)+'</span><span class="comment-time">'+timeAgo(c.created_at)+'</span></div>'+
+              '<div class="comment-text">'+escapeHtml(c.body)+'</div>'+
+            '</div>'+
+          '</div>';
+        }).join('')+'</div>';
+
+    root.innerHTML = formHtml + listHtml;
+
+    const form = document.getElementById('comment-form');
+    const bodyInput = document.getElementById('comment-body');
+    const charCount = document.getElementById('comment-char-count');
+    const submitErr = document.getElementById('comment-submit-error');
+    bodyInput.addEventListener('input', ()=>{ charCount.textContent = bodyInput.value.length+' / 2000'; });
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      submitErr.textContent = '';
+      const author = document.getElementById('comment-author').value.trim();
+      const body = bodyInput.value.trim();
+      if(!body){ submitErr.textContent = 'Say something first.'; return; }
+      const btn = form.querySelector('button[type=submit]');
+      btn.disabled = true;
+      try{
+        const res = await fetch(API, {
+          method:'POST', headers:{'content-type':'application/json'},
+          body: JSON.stringify({ author, body })
+        });
+        if(!res.ok){ const e2 = await res.json().catch(()=>({})); throw new Error(e2.error||'Failed to post comment'); }
+        await load();
+      } catch(err){
+        submitErr.textContent = err.message || 'Failed to post comment';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    root.querySelectorAll('.vote-btn').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const item = btn.closest('.comment-item');
+        const id = item.dataset.id;
+        const dir = Number(btn.dataset.dir);
+        item.querySelectorAll('.vote-btn').forEach(b=>b.disabled=true);
+        try{
+          const res = await fetch(API+'/'+id+'/vote', {
+            method:'POST', headers:{'content-type':'application/json'},
+            body: JSON.stringify({ voterId: getVoterId(), direction: dir })
+          });
+          if(!res.ok) throw new Error('vote failed');
+          const data = await res.json();
+          setMyVote(id, data.myVote);
+          const score = data.comment.upvotes - data.comment.downvotes;
+          item.querySelector('.vote-score').textContent = score;
+          item.querySelector('.vote-btn.up').classList.toggle('active', data.myVote===1);
+          item.querySelector('.vote-btn.down').classList.toggle('active', data.myVote===-1);
+        } catch(err){
+          /* silent fail, leave UI as-is */
+        } finally {
+          item.querySelectorAll('.vote-btn').forEach(b=>b.disabled=false);
+        }
+      });
+    });
+  }
+
+  async function load(){
+    try{
+      const res = await fetch(API);
+      if(!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      renderComments(data.comments||[]);
+    } catch(err){
+      renderFallback();
+    }
+  }
+
+  load();
+})();
 
 })();
 </script>
