@@ -206,8 +206,9 @@
   table.fin td.hist{ color:var(--text-faint); }
   table.fin col.hist-col{ background:var(--surface-2); }
   table.fin thead th.divider-col, table.fin td.divider-col{ border-left:2px solid var(--border); }
-  table.fin.hist3 tbody td:nth-child(2), table.fin.hist3 tbody td:nth-child(3), table.fin.hist3 tbody td:nth-child(4){ background:var(--surface-2); }
-  table.fin.hist1 tbody td:nth-child(2){ background:var(--surface-2); }
+  /* Shading marks reported columns; the cells carry the class so the count
+     follows the data instead of a fixed column position. */
+  table.fin tbody td.histcol{ background:var(--surface-2); }
 
   /* On phones the sticky label column would eat most of the screen, leaving
      no room for the figures — let it wrap to a narrow fixed width instead. */

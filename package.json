@@ -4,9 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node build.js && wrangler pages dev dist",
+    "dev": "node build.js && npx wrangler pages dev dist",
     "build": "node build.js",
-    "deploy": "node build.js && wrangler pages deploy dist --project-name=x-mantou --commit-dirty=true",
+    "check": "node scripts/check.js",
+    "roll-quarter": "node scripts/roll-quarter.js",
+    "deploy": "node scripts/check.js && node build.js && npx wrangler pages deploy dist --project-name=x-mantou --commit-dirty=true",
     "lint": "oxlint"
   },
   "devDependencies": {

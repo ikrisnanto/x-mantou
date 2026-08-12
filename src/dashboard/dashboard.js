@@ -13,7 +13,7 @@ function computeModel(inputs) {
   const out = { quarters: Q, space:{}, connectivity:{}, ai:{}, total:{}, bs:{} };
 
   const spRev=[], spCogs=[], spRnd=[], spSga=[], spOpInc=[], spCapex=[];
-  let prevSp = f.space.revQ226A;
+  let prevSp = JUMPOFF.space;
   for (let t=0;t<N;t++){
     const rev = prevSp*(1+f.space.revGrowth[t]);
     spRev.push(rev);
@@ -27,7 +27,7 @@ function computeModel(inputs) {
   out.space = {revenue:spRev, cogs:spCogs, rnd:spRnd, sga:spSga, opInc:spOpInc, capex:spCapex};
 
   const coSubs=[], coConsumerRev=[], coEntGovRev=[], coRev=[], coCogs=[], coRnd=[], coSga=[], coOpInc=[], coCapex=[];
-  let prevSubs = f.connectivity.subsQ226A, prevEntGov = f.connectivity.entGovQ226A;
+  let prevSubs = JUMPOFF.connectivitySubs, prevEntGov = JUMPOFF.connectivityEntGov;
   for (let t=0;t<N;t++){
     const subs = prevSubs + f.connectivity.subAdds[t];
     coSubs.push(subs);
@@ -53,7 +53,7 @@ function computeModel(inputs) {
   const effRate = new Array(N).fill(0);
   const incrementalGW = new Array(N).fill(0);
 
-  let prevNameplate = f.ai.nameplateQ226A;
+  let prevNameplate = JUMPOFF.aiNameplateGW;
   for (let t=0;t<N;t++){
     incrementalGW[t] = Math.max(0, nameplate[t]-prevNameplate);
     prevNameplate = nameplate[t];
@@ -66,7 +66,7 @@ function computeModel(inputs) {
     }
   } else {
     const convQ = Math.max(1, convergenceYears*4);
-    const vintages = [{origin:-1, size:f.ai.nameplateQ226A, price0:longTermRate}];
+    const vintages = [{origin:-1, size:JUMPOFF.aiNameplateGW, price0:longTermRate}];
     for (let t=0;t<N;t++){
       if (incrementalGW[t] > 1e-9) vintages.push({origin:t, size:incrementalGW[t], price0:spotTable[t]});
       let weightedRevSum = 0, sizeSum = 0;
@@ -85,7 +85,7 @@ function computeModel(inputs) {
   }
 
   const aiAdvRev = [];
-  let prevAd = f.ai.adQ226A;
+  let prevAd = JUMPOFF.aiAdvertising;
   for (let t=0;t<N;t++){ const v = prevAd*(1+f.ai.adGrowth[t]); aiAdvRev.push(v); prevAd = v; }
 
   const aiRev=[], aiCogs=[], aiRnd=[], aiSga=[], aiOpInc=[], aiCapex=[];
@@ -154,10 +154,11 @@ function computeModel(inputs) {
     dep:inServiceCum, opInc:totOpInc, intExp, intInc, otherIncome:f.financing.otherIncome, pretax, tax:f.financing.tax,
     netIncome, capex:totCapex, cfoProxy, newDebt, closingCash, closingDebt, totalDebtOut, openingCash, openingDebt};
 
-  const otherAssets = f.balanceQ226A.totalAssets - f.balanceQ226A.cash - f.balanceQ226A.securities - f.balanceQ226A.ppe;
-  const otherLiab = f.balanceQ226A.totalLiab - f.financing.existingDebt;
+  const B0 = JUMPOFF.balance;
+  const otherAssets = B0.totalAssets - B0.cash - B0.securities - B0.ppe;
+  const otherLiab = B0.totalLiab - f.financing.existingDebt;
   const ppe=[], totalAssets=[], totalLiab=[], equity=[], cumNI=[], otherEquityMovement=[];
-  let prevPPE = f.balanceQ226A.ppe, prevEquity = f.balanceQ226A.equity, cum=0;
+  let prevPPE = B0.ppe, prevEquity = B0.equity, cum=0;
   for (let t=0;t<N;t++){
     const p = prevPPE + totCapex[t] - inServiceCum[t];
     ppe.push(p);
@@ -203,6 +204,10 @@ function currentInputs(){
 }
 
 function round4(x){ return Math.round(x*10000)/10000; }
+
+/* Pulls one field across every reported quarter, in order. Nothing in the UI
+   should hardcode reported figures — add them to REPORTED instead. */
+function hist(field){ return REPORTED.map(r => r[field] ?? null); }
 
 /* ============================= FORMATTERS ============================= */
 function fmt0(x){ if(x===undefined||x===null||isNaN(x)) return '–'; if(Math.abs(x)<0.5) return '–'; const v=Math.round(x); const s=Math.abs(v).toLocaleString('en-US'); return v<0? '('+s+')': s; }
@@ -532,8 +537,11 @@ function renderKPIs(m){
 /* ============================= TABLES ============================= */
 function rowHTML(label, values, opts){
   opts = opts||{};
-  const cells = values.map(v=>{
-    const cls = ['num']; if(v<0) cls.push('neg');
+  // Reported columns are shaded from the data, so the count follows REPORTED
+  // rather than a fixed rule that silently goes stale when a quarter rolls.
+  const hist = opts.hist||0;
+  const cells = values.map((v,i)=>{
+    const cls = ['num']; if(v<0) cls.push('neg'); if(i<hist) cls.push('histcol');
     return '<td class="'+cls.join(' ')+'">'+(opts.pct? fmtPct(v,1) : fmt0(v))+'</td>';
   }).join('');
   return '<tr class="'+(opts.rowClass||'')+'"><td class="rowlabel">'+label+'</td>'+cells+'</tr>';
@@ -543,81 +551,82 @@ function sectionRow(label, span){
 }
 
 function renderPLTable(m){
+  const HIST = REPORTED.length;
   const el = document.getElementById('table-pl');
   const allQ = HQ.concat(Q);
-  const H = FIXED.historical;
 
   const cat = (histArr, fArr)=> histArr.concat(fArr);
-  const zeros = new Array(3).fill(0);
+  const zeros = REPORTED.map(()=>0);
 
   let head = '<thead><tr><th class="rowlabel">$mm</th>'+allQ.map((q,i)=>'<th class="num'+(i===3?' divider-col':'')+'">'+q+'</th>').join('')+'</tr></thead>';
 
   let body = '<tbody>';
   body += sectionRow('Revenue by segment', allQ.length);
-  body += rowHTML('Space', cat(H.space, m.space.revenue));
-  body += rowHTML('Connectivity', cat(H.connectivity, m.connectivity.revenue));
-  body += rowHTML('AI', cat(H.ai, m.ai.revenue));
-  const totRevHist = H.space.map((v,i)=>v+H.connectivity[i]+H.ai[i]);
-  body += rowHTML('Total revenue', cat(totRevHist, m.total.revenue), {rowClass:'total'});
+  body += rowHTML('Space', cat(hist('space'), m.space.revenue), {hist:HIST});
+  body += rowHTML('Connectivity', cat(hist('connectivity'), m.connectivity.revenue), {hist:HIST});
+  body += rowHTML('AI', cat(hist('ai'), m.ai.revenue), {hist:HIST});
+  const totRevHist = REPORTED.map(r => r.space + r.connectivity + r.ai);
+  body += rowHTML('Total revenue', cat(totRevHist, m.total.revenue), {rowClass:'total', hist:HIST});
 
   body += sectionRow('Costs &amp; expenses', allQ.length);
-  body += rowHTML('Cost of revenue', cat(zeros, m.total.cogs));
-  body += rowHTML('Research &amp; development', cat(zeros, m.total.rnd));
-  body += rowHTML('Selling, general &amp; admin', cat(zeros, m.total.sga));
-  body += rowHTML('Depreciation, new capex', cat(zeros, m.total.dep));
+  body += rowHTML('Cost of revenue', cat(zeros, m.total.cogs), {hist:HIST});
+  body += rowHTML('Research &amp; development', cat(zeros, m.total.rnd), {hist:HIST});
+  body += rowHTML('Selling, general &amp; admin', cat(zeros, m.total.sga), {hist:HIST});
+  body += rowHTML('Depreciation, new capex', cat(zeros, m.total.dep), {hist:HIST});
 
-  const opIncHist = [-970,-1943,-143];
-  body += rowHTML('Income (loss) from operations', cat(opIncHist, m.total.opInc), {rowClass:'total'});
-  body += rowHTML('  Operating margin %', cat(opIncHist.map((v,i)=>v/totRevHist[i]), m.total.opInc.map((v,i)=>v/m.total.revenue[i])), {pct:true});
+  const opIncHist = hist('opInc');
+  body += rowHTML('Income (loss) from operations', cat(opIncHist, m.total.opInc), {rowClass:'total', hist:HIST});
+  body += rowHTML('  Operating margin %', cat(opIncHist.map((v,i)=>v/totRevHist[i]), m.total.opInc.map((v,i)=>v/m.total.revenue[i])), {pct:true, hist:HIST});
 
   body += sectionRow('Below the line', allQ.length);
-  const intExpHist=[-411,-664,-629], intIncHist=[98,213,340], otherHist=[413,-1876,-86], taxHist=[138,6,23];
-  body += rowHTML('Interest expense', cat(intExpHist, m.total.intExp));
-  body += rowHTML('Interest income', cat(intIncHist, m.total.intInc));
-  body += rowHTML('Other income (expense), net', cat(otherHist, m.total.otherIncome));
-  body += rowHTML('Provision for income taxes', cat(taxHist, m.total.tax));
-  body += rowHTML('Net income (loss)', cat(H.netIncome, m.total.netIncome), {rowClass:'total'});
-  body += rowHTML('  Net margin %', cat(H.netIncome.map((v,i)=>v/totRevHist[i]), m.total.netIncome.map((v,i)=>v/m.total.revenue[i])), {pct:true});
+  const intExpHist=hist('interestExpense'), intIncHist=hist('interestIncome'), otherHist=hist('otherIncome'), taxHist=hist('tax');
+  body += rowHTML('Interest expense', cat(intExpHist, m.total.intExp), {hist:HIST});
+  body += rowHTML('Interest income', cat(intIncHist, m.total.intInc), {hist:HIST});
+  body += rowHTML('Other income (expense), net', cat(otherHist, m.total.otherIncome), {hist:HIST});
+  body += rowHTML('Provision for income taxes', cat(taxHist, m.total.tax), {hist:HIST});
+  body += rowHTML('Net income (loss)', cat(hist('netIncome'), m.total.netIncome), {rowClass:'total', hist:HIST});
+  body += rowHTML('  Net margin %', cat(hist('netIncome').map((v,i)=>v/totRevHist[i]), m.total.netIncome.map((v,i)=>v/m.total.revenue[i])), {pct:true, hist:HIST});
 
   body += sectionRow('Memo', allQ.length);
-  body += rowHTML('AI infrastructure revenue', cat([null,null,2194], m.ai.infraRev), {rowClass:'memo'});
-  body += rowHTML('AI nameplate compute (GW)', cat(H.aiNameplateGW, m.ai.nameplateGW), {rowClass:'memo'});
-  body += rowHTML('AI realized $/GW/yr (blended)', cat([null,null,null], m.ai.effRate.map(v=>v*4)), {rowClass:'memo'});
-  body += rowHTML('Total capex', cat([2825,10107,18369], m.total.capex), {rowClass:'memo'});
-  body += rowHTML('  of which AI capex', cat([749,7723,15828], m.ai.capex), {rowClass:'memo'});
-  body += rowHTML('ARR (exit-month revenue x 12)', [null,null,null, m.total.revenue[0]*0.38*12].concat(m.total.revenue.slice(1).map(v=>v*0.38*12)), {rowClass:'memo'});
+  body += rowHTML('AI infrastructure revenue', cat(hist('aiInfraRevenue'), m.ai.infraRev), {rowClass:'memo', hist:HIST});
+  body += rowHTML('AI nameplate compute (GW)', cat(hist('aiNameplateGW'), m.ai.nameplateGW), {rowClass:'memo', hist:HIST});
+  body += rowHTML('AI realized $/GW/yr (blended)', cat(REPORTED.map(()=>null), m.ai.effRate.map(v=>v*4)), {rowClass:'memo', hist:HIST});
+  body += rowHTML('Total capex', cat(hist('totalCapex'), m.total.capex), {rowClass:'memo', hist:HIST});
+  body += rowHTML('  of which AI capex', cat(hist('aiCapex'), m.ai.capex), {rowClass:'memo', hist:HIST});
+  body += rowHTML('ARR (exit-month revenue x 12)', REPORTED.map(()=>null).concat(m.total.revenue.map(v=>v*0.38*12)), {rowClass:'memo', hist:HIST});
   body += '</tbody>';
 
   el.innerHTML = head+body;
 }
 
 function renderBSTable(m){
+  const HIST = 1;
   const el = document.getElementById('table-bs');
-  const cols = ["Jun 30, 2026A"].concat(Q);
-  const B = FIXED.balanceQ226A;
+  const cols = [JUMPOFF.label + "A"].concat(Q);
+  const B = JUMPOFF.balance;
   let head = '<thead><tr><th class="rowlabel">$mm</th>'+cols.map((c,i)=>'<th class="num'+(i===1?' divider-col':'')+'">'+c+'</th>').join('')+'</tr></thead>';
 
   const cat = (v0, arr)=> [v0].concat(arr);
 
   let body='<tbody>';
   body += sectionRow('Assets', cols.length);
-  body += rowHTML('Cash &amp; securities', cat(B.cash+B.securities, m.bs.cash));
-  body += rowHTML('Property, plant &amp; equipment, net', cat(B.ppe, m.bs.ppe));
-  body += rowHTML('Other assets (held flat)', cat(m.bs.otherAssets, m.bs.otherAssets===undefined? [] : new Array(N).fill(m.bs.otherAssets)));
-  body += rowHTML('Total assets', cat(B.totalAssets, m.bs.totalAssets), {rowClass:'total'});
+  body += rowHTML('Cash &amp; securities', cat(B.cash+B.securities, m.bs.cash), {hist:HIST});
+  body += rowHTML('Property, plant &amp; equipment, net', cat(B.ppe, m.bs.ppe), {hist:HIST});
+  body += rowHTML('Other assets (held flat)', cat(m.bs.otherAssets, m.bs.otherAssets===undefined? [] : new Array(N).fill(m.bs.otherAssets)), {hist:HIST});
+  body += rowHTML('Total assets', cat(B.totalAssets, m.bs.totalAssets), {rowClass:'total', hist:HIST});
 
   body += sectionRow('Liabilities', cols.length);
-  body += rowHTML('Total debt (existing + new)', cat(39364, m.bs.totalDebtOut));
-  body += rowHTML('Other liabilities (held flat)', cat(m.bs.otherLiab, new Array(N).fill(m.bs.otherLiab)));
-  body += rowHTML('Total liabilities', cat(B.totalLiab, m.bs.totalLiab), {rowClass:'total'});
+  body += rowHTML('Total debt (existing + new)', cat(39364, m.bs.totalDebtOut), {hist:HIST});
+  body += rowHTML('Other liabilities (held flat)', cat(m.bs.otherLiab, new Array(N).fill(m.bs.otherLiab)), {hist:HIST});
+  body += rowHTML('Total liabilities', cat(B.totalLiab, m.bs.totalLiab), {rowClass:'total', hist:HIST});
 
   body += sectionRow("Shareholders&rsquo; equity", cols.length);
   body += rowHTML('Total shareholders&rsquo; equity', cat(B.equity, m.bs.equity), {rowClass:'total'});
   body += rowHTML('Total liabilities &amp; equity', cat(B.totalLiab+B.equity, m.bs.totalLiab.map((v,i)=>v+m.bs.equity[i])), {rowClass:'total'});
 
   body += sectionRow('Memo: equity bridge', cols.length);
-  body += rowHTML('Cumulative net income', cat(0, m.bs.cumNI), {rowClass:'memo'});
-  body += rowHTML('Other reconciling items (unmodeled WC/deferred rev/non-cash)', cat(0, m.bs.otherEquityMovement), {rowClass:'memo'});
+  body += rowHTML('Cumulative net income', cat(0, m.bs.cumNI), {rowClass:'memo', hist:HIST});
+  body += rowHTML('Other reconciling items (unmodeled WC/deferred rev/non-cash)', cat(0, m.bs.otherEquityMovement), {rowClass:'memo', hist:HIST});
   body += '</tbody>';
 
   el.innerHTML = head+body;
@@ -631,13 +640,13 @@ function renderAll(){
 
   const revLabels = HQ.concat(Q);
   stackedBarChart(document.getElementById('chart-revenue'), revLabels, [
-    {label:'Space', color:colorVar('--space'), values: FIXED.historical.space.concat(m.space.revenue)},
-    {label:'Connectivity', color:colorVar('--connectivity'), values: FIXED.historical.connectivity.concat(m.connectivity.revenue)},
-    {label:'AI', color:colorVar('--ai'), values: FIXED.historical.ai.concat(m.ai.revenue)}
-  ], {histCount:3, width:560, height:230});
+    {label:'Space', color:colorVar('--space'), values: hist('space').concat(m.space.revenue)},
+    {label:'Connectivity', color:colorVar('--connectivity'), values: hist('connectivity').concat(m.connectivity.revenue)},
+    {label:'AI', color:colorVar('--ai'), values: hist('ai').concat(m.ai.revenue)}
+  ], {histCount:HQ.length, width:560, height:230});
 
-  lineChart(document.getElementById('chart-netincome'), revLabels, FIXED.historical.netIncome.concat(m.total.netIncome),
-    {histCount:3, width:420, height:230, label:'Net income'});
+  lineChart(document.getElementById('chart-netincome'), revLabels, hist('netIncome').concat(m.total.netIncome),
+    {histCount:HQ.length, width:420, height:230, label:'Net income'});
 
   barChartSimple(document.getElementById('chart-gw'), Q, m.ai.nameplateGW, {color:colorVar('--ai'), label:'Nameplate GW', fmt:v=>Math.round(v)+' GW', width:340, height:190});
   barChartSimple(document.getElementById('chart-rate'), Q, m.ai.effRate.map(v=>v*4), {color:colorVar('--accent'), label:'$B/GW/yr', fmt:v=>'$'+(v/1000).toFixed(1)+'B', width:340, height:190});
@@ -965,7 +974,7 @@ fetch('/api/assumptions')
       { path:'financing.newRate',       shape:ONE, kind:'pct', label:'Rate on new debt', unit:'/yr' },
       { path:'financing.cashYield',     shape:ONE, kind:'pct', label:'Yield on cash', unit:'/yr' },
       { path:'financing.minCash',       shape:ONE, kind:'num', label:'Minimum cash buffer', unit:'$mm' },
-      { path:'financing.openingCash',   shape:ONE, kind:'num', label:'Opening cash at Jun 30 2026', unit:'$mm' },
+      { path:'financing.openingCash',   shape:ONE, kind:'num', label:'Opening cash at jump-off', unit:'$mm' },
     ]},
   ];
 

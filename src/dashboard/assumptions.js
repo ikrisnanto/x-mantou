@@ -21,9 +21,49 @@
 /* eslint-disable no-unused-vars -- Q, HQ, N, FIXED and CASES are consumed by
    dashboard.js once build.js concatenates both files into one scope. */
 
+/* Quarters the model forecasts. Add or remove entries here and every driver
+   array below must match in length — npm run check verifies that for you. */
 const Q = ["Q326","Q426","Q127","Q227","Q327","Q427","Q128","Q228","Q328","Q428"];
-const HQ = ["Q225","Q126","Q226"];
-const N = 10;
+
+/* Reported quarters, oldest first. THE LAST ENTRY IS THE JUMP-OFF: the forecast
+   starts from it, so its balance sheet and segment detail seed the engine.
+   Earlier entries only need what the historical columns display; anything not
+   reported for a quarter is null.
+
+   To roll the model forward when a new quarter is published:  npm run roll-quarter
+   which appends a record here and drops the quarter it replaces from Q and from
+   every driver array. */
+const REPORTED = [
+  { label: "Q225",
+    space: 746, connectivity: 2588, ai: 737,
+    opInc: -970, netIncome: -1008,
+    interestExpense: -411, interestIncome: 98, otherIncome: 413, tax: 138,
+    aiNameplateGW: 0.4, aiInfraRevenue: null,
+    totalCapex: 2825, aiCapex: 749 },
+
+  { label: "Q126",
+    space: 619, connectivity: 3257, ai: 818,
+    opInc: -1943, netIncome: -4276,
+    interestExpense: -664, interestIncome: 213, otherIncome: -1876, tax: 6,
+    aiNameplateGW: 1.0, aiInfraRevenue: null,
+    totalCapex: 10107, aiCapex: 7723 },
+
+  { label: "Q226",
+    space: 962, connectivity: 4291, ai: 2561,
+    opInc: -143, netIncome: -541,
+    interestExpense: -629, interestIncome: 340, otherIncome: -86, tax: 23,
+    aiNameplateGW: 1.4, aiInfraRevenue: 2194,
+    totalCapex: 18369, aiCapex: 15828,
+
+    // Jump-off detail — only the last record needs these.
+    connectivitySubs: 12, connectivityEntGov: 1806, aiAdvertising: 367,
+    balance: { cash: 93522, securities: 6487, ppe: 65736,
+               totalAssets: 192770, totalLiab: 65546, equity: 127224 } },
+];
+
+const N  = Q.length;
+const HQ = REPORTED.map(r => r.label);
+const JUMPOFF = REPORTED[REPORTED.length - 1];
 
 const FIXED = {
   space: {
@@ -31,8 +71,7 @@ const FIXED = {
     cogsPct:   [0.33,0.32,0.31,0.30,0.30,0.29,0.28,0.28,0.27,0.27],
     rndPct:    [1.00,0.90,0.80,0.70,0.62,0.55,0.50,0.46,0.42,0.39],
     sgaPct:    [0.10,0.10,0.09,0.09,0.09,0.08,0.08,0.08,0.07,0.07],
-    capexPct:  [1.00,0.90,0.75,0.65,0.55,0.50,0.45,0.40,0.38,0.35],
-    revQ226A: 962
+    capexPct:  [1.00,0.90,0.75,0.65,0.55,0.50,0.45,0.40,0.38,0.35]
   },
   connectivity: {
     subAdds:   [1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3,1.2,1.2],
@@ -41,8 +80,7 @@ const FIXED = {
     cogsPct:   [0.47,0.46,0.45,0.44,0.43,0.42,0.41,0.41,0.40,0.40],
     rndPct:    [0.065,0.062,0.060,0.058,0.056,0.055,0.054,0.053,0.052,0.051],
     sgaPct:    [0.06,0.058,0.056,0.054,0.052,0.05,0.049,0.048,0.047,0.046],
-    capexPct:  [0.30,0.29,0.28,0.27,0.26,0.25,0.24,0.24,0.23,0.23],
-    subsQ226A: 12, entGovQ226A: 1806
+    capexPct:  [0.30,0.29,0.28,0.27,0.26,0.25,0.24,0.24,0.23,0.23]
   },
   ai: {
     cogsPct:   [0.40,0.39,0.38,0.37,0.36,0.35,0.34,0.34,0.33,0.33],
@@ -51,8 +89,7 @@ const FIXED = {
     monetizable: [0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9],
     grok:      [700,900,1150,1400,1650,1900,2150,2400,2650,2900],
     cursor:    [0,1200,1500,1800,2100,2400,2700,3000,3300,3600],
-    adGrowth:  [-0.02,0,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.02],
-    adQ226A: 367, nameplateQ226A: 1.4
+    adGrowth:  [-0.02,0,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.02]
   },
   financing: {
     itShare: 0.7, itLife: 20, facilityLife: 56,
@@ -61,15 +98,6 @@ const FIXED = {
     otherIncome: [-50,-50,-30,-20,-10,0,0,0,0,0],
     tax: [20,20,20,20,20,20,20,20,20,20]
   },
-  balanceQ226A: { cash: 93522, securities: 6487, ppe: 65736, totalAssets: 192770, totalLiab: 65546, equity: 127224 },
-  historical: {
-    quarters: HQ,
-    space:        [746, 619, 962],
-    connectivity: [2588, 3257, 4291],
-    ai:           [737, 818, 2561],
-    netIncome:    [-1008, -4276, -541],
-    aiNameplateGW:[0.4, 1.0, 1.4]
-  }
 };
 
 const CASES = {
