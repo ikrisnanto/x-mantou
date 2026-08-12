@@ -25,3 +25,6 @@ dist-ssr
 
 # build output of build.js (index.html is committed as the deployable artifact)
 dist/
+
+# panel writes a one-step undo next to the file it overwrites
+src/dashboard/assumptions.js.bak

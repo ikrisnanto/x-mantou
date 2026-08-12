@@ -132,6 +132,27 @@
       <div class="table-scroll"><table class="fin hist1" id="table-bs"></table></div>
     </section>
 
+    <section class="card" id="assumptions-card">
+      <div class="card-head">
+        <h2>Model assumptions</h2>
+        <div class="card-note">Forecast drivers &middot; reported actuals are not editable</div>
+      </div>
+      <p class="card-intro">
+        Every structural driver behind the model. Edit any cell and the tables and charts above
+        update immediately. <span id="assump-local-note">Running locally, Save writes straight back to
+        <code>src/dashboard/assumptions.js</code>.</span>
+      </p>
+      <div class="assump-actions">
+        <button type="button" class="btn small primary" id="assump-save">Save to assumptions.js</button>
+        <button type="button" class="btn small" id="assump-copy">Copy</button>
+        <button type="button" class="btn small" id="assump-download">Download</button>
+        <button type="button" class="btn small ghost" id="assump-reset">Discard changes</button>
+        <span class="assump-dirty" id="assump-dirty"></span>
+        <span class="assump-status" id="assump-status"></span>
+      </div>
+      <div class="table-scroll"><div id="assumptions-body"></div></div>
+    </section>
+
     <section class="card">
       <div class="card-head">
         <h2>Comments &amp; suggestions</h2>

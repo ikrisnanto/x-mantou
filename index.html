@@ -301,6 +301,38 @@
   footer.notes li{ margin-bottom:4px; }
 
   .visually-hidden{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+
+  /* ---------- Assumptions panel ---------- */
+  .assump-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .assump-dirty{ font-size:12.5px; font-weight:700; color:var(--warn); }
+  .assump-status{ font-size:12.5px; color:var(--text-dim); }
+  .assump-group{ margin-bottom:22px; }
+  .assump-group-title{
+    font-size:12.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--text-faint); margin-bottom:6px;
+  }
+  table.assump-table{ border-collapse:collapse; width:100%; min-width:820px; }
+  table.assump-table th{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--text-dim); padding:4px 6px; text-align:center; white-space:nowrap;
+  }
+  table.assump-table td{ padding:3px 4px; }
+  table.assump-table td.assump-rowlabel, table.assump-table th.assump-rowlabel{
+    text-align:left; font-size:13px; color:var(--text); font-weight:600;
+    min-width:230px; max-width:230px; white-space:normal; line-height:1.3; padding-right:10px;
+  }
+  .assump-input{
+    width:100%; min-width:52px; font-family:var(--mono); font-size:11.5px; text-align:center;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:5px;
+    color:var(--text); padding:5px 2px; font-variant-numeric:tabular-nums;
+  }
+  .assump-input:focus-visible{ outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
+  td.assump-scalar .assump-input{ max-width:110px; }
+  @media (max-width:720px){
+    table.assump-table td.assump-rowlabel, table.assump-table th.assump-rowlabel{
+      min-width:130px; max-width:130px; font-size:11.5px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -436,6 +468,27 @@
         <div class="card-note">$mm · actual column at Jun 30, 2026</div>
       </div>
       <div class="table-scroll"><table class="fin hist1" id="table-bs"></table></div>
+    </section>
+
+    <section class="card" id="assumptions-card">
+      <div class="card-head">
+        <h2>Model assumptions</h2>
+        <div class="card-note">Forecast drivers &middot; reported actuals are not editable</div>
+      </div>
+      <p class="card-intro">
+        Every structural driver behind the model. Edit any cell and the tables and charts above
+        update immediately. <span id="assump-local-note">Running locally, Save writes straight back to
+        <code>src/dashboard/assumptions.js</code>.</span>
+      </p>
+      <div class="assump-actions">
+        <button type="button" class="btn small primary" id="assump-save">Save to assumptions.js</button>
+        <button type="button" class="btn small" id="assump-copy">Copy</button>
+        <button type="button" class="btn small" id="assump-download">Download</button>
+        <button type="button" class="btn small ghost" id="assump-reset">Discard changes</button>
+        <span class="assump-dirty" id="assump-dirty"></span>
+        <span class="assump-status" id="assump-status"></span>
+      </div>
+      <div class="table-scroll"><div id="assumptions-body"></div></div>
     </section>
 
     <section class="card">
@@ -1487,6 +1540,241 @@ window.addEventListener('resize', renderAll);
   window.addEventListener('hashchange', ()=>{ if(!adminToken) load(); });
 })();
 
+
+/* ============================================================================
+ * ASSUMPTIONS PANEL
+ *
+ * Presents the structural forecast drivers from assumptions.js as a labelled,
+ * editable grid. Edits mutate FIXED in place and re-run the model immediately.
+ *
+ * Reported actuals are deliberately excluded — they are shown read-only in the
+ * tables above and should only change when SpaceX publishes or restates.
+ *
+ * Running locally, "Save to assumptions.js" writes the file through the dev
+ * server. On the deployed site there is no such endpoint, so the panel offers
+ * Copy/Download instead and a visitor's edits stay in their browser session.
+ * ==========================================================================*/
+(function(){
+  const QTR = 'quarterly';   // 10 values, Q326 -> Q428
+  const ONE = 'scalar';
+
+  // kind: how the stored value is shown. pct is stored as a fraction.
+  const GROUPS = [
+    { title:'Space segment', rows:[
+      { path:'space.revGrowth', shape:QTR, kind:'pct', label:'Revenue growth, QoQ' },
+      { path:'space.cogsPct',   shape:QTR, kind:'pct', label:'Cost of revenue, % of revenue' },
+      { path:'space.rndPct',    shape:QTR, kind:'pct', label:'R&D, % of revenue' },
+      { path:'space.sgaPct',    shape:QTR, kind:'pct', label:'SG&A, % of revenue' },
+      { path:'space.capexPct',  shape:QTR, kind:'pct', label:'Capex, % of revenue' },
+    ]},
+    { title:'Connectivity segment', rows:[
+      { path:'connectivity.subAdds',      shape:QTR, kind:'num', label:'Net subscriber adds', unit:'mm' },
+      { path:'connectivity.arpu',         shape:QTR, kind:'num', label:'Consumer ARPU', unit:'$/mo' },
+      { path:'connectivity.entGovGrowth', shape:QTR, kind:'pct', label:'Enterprise & gov growth, QoQ' },
+      { path:'connectivity.cogsPct',      shape:QTR, kind:'pct', label:'Cost of revenue, % of revenue' },
+      { path:'connectivity.rndPct',       shape:QTR, kind:'pct', label:'R&D, % of revenue' },
+      { path:'connectivity.sgaPct',       shape:QTR, kind:'pct', label:'SG&A, % of revenue' },
+      { path:'connectivity.capexPct',     shape:QTR, kind:'pct', label:'Capex, % of revenue' },
+    ]},
+    { title:'AI segment', rows:[
+      { path:'ai.monetizable', shape:QTR, kind:'pct', label:'Monetizable share of compute' },
+      { path:'ai.cogsPct',     shape:QTR, kind:'pct', label:'Cost of revenue, % of revenue' },
+      { path:'ai.rndPct',      shape:QTR, kind:'pct', label:'R&D, % of revenue' },
+      { path:'ai.sgaPct',      shape:QTR, kind:'pct', label:'SG&A, % of revenue' },
+      { path:'ai.grok',        shape:QTR, kind:'num', label:'Grok subscription revenue', unit:'$mm/qtr' },
+      { path:'ai.cursor',      shape:QTR, kind:'num', label:'Cursor revenue', unit:'$mm/qtr' },
+      { path:'ai.adGrowth',    shape:QTR, kind:'pct', label:'Advertising growth, QoQ' },
+    ]},
+    { title:'Below the line', rows:[
+      { path:'financing.otherIncome', shape:QTR, kind:'num', label:'Other income (expense), net', unit:'$mm/qtr' },
+      { path:'financing.tax',         shape:QTR, kind:'num', label:'Income tax', unit:'$mm/qtr' },
+    ]},
+    { title:'Financing & depreciation', rows:[
+      { path:'financing.itShare',       shape:ONE, kind:'pct', label:'IT equipment share of capex' },
+      { path:'financing.itLife',        shape:ONE, kind:'num', label:'IT equipment life', unit:'quarters' },
+      { path:'financing.facilityLife',  shape:ONE, kind:'num', label:'Facility life', unit:'quarters' },
+      { path:'financing.legacyAddback', shape:ONE, kind:'num', label:'Legacy non-cash add-back', unit:'$mm/qtr' },
+      { path:'financing.existingDebt',  shape:ONE, kind:'num', label:'Existing debt', unit:'$mm' },
+      { path:'financing.existingRate',  shape:ONE, kind:'pct', label:'Rate on existing debt', unit:'/yr' },
+      { path:'financing.newRate',       shape:ONE, kind:'pct', label:'Rate on new debt', unit:'/yr' },
+      { path:'financing.cashYield',     shape:ONE, kind:'pct', label:'Yield on cash', unit:'/yr' },
+      { path:'financing.minCash',       shape:ONE, kind:'num', label:'Minimum cash buffer', unit:'$mm' },
+      { path:'financing.openingCash',   shape:ONE, kind:'num', label:'Opening cash at Jun 30 2026', unit:'$mm' },
+    ]},
+  ];
+
+  const getRef = (p) => p.split('.').reduce((o,k)=>o[k], FIXED);
+  const getParent = (p) => { const k=p.split('.'); return [k.slice(0,-1).reduce((o,x)=>o[x],FIXED), k[k.length-1]]; };
+  const toDisplay = (v,kind) => kind==='pct' ? +(v*100).toFixed(4) : v;
+  const toStored  = (v,kind) => kind==='pct' ? v/100 : v;
+
+  let dirty = false;
+
+  function cellInput(value, kind, onChange){
+    const inp = document.createElement('input');
+    inp.type='number'; inp.className='assump-input';
+    inp.step = kind==='pct' ? '0.1' : 'any';
+    inp.value = toDisplay(value, kind);
+    inp.addEventListener('input', ()=>{
+      const raw = parseFloat(inp.value);
+      if(Number.isNaN(raw)) return;
+      onChange(toStored(raw, kind));
+      dirty = true;
+      updateDirty();
+      renderAll();
+    });
+    return inp;
+  }
+
+  function updateDirty(){
+    const b = document.getElementById('assump-dirty');
+    if(b) b.textContent = dirty ? 'Unsaved changes' : '';
+  }
+
+  function buildPanel(){
+    const host = document.getElementById('assumptions-body');
+    if(!host) return;
+    host.innerHTML='';
+
+    GROUPS.forEach(g=>{
+      const sec = document.createElement('div'); sec.className='assump-group';
+      const h = document.createElement('div'); h.className='assump-group-title'; h.textContent=g.title;
+      sec.appendChild(h);
+
+      const table = document.createElement('table'); table.className='assump-table';
+      if(g.rows.some(r=>r.shape===QTR)){
+        const thead=document.createElement('thead');
+        const tr=document.createElement('tr');
+        tr.appendChild(Object.assign(document.createElement('th'),{className:'assump-rowlabel',textContent:'Driver'}));
+        Q.forEach(q=>tr.appendChild(Object.assign(document.createElement('th'),{textContent:q})));
+        thead.appendChild(tr); table.appendChild(thead);
+      }
+      const tbody=document.createElement('tbody');
+
+      g.rows.forEach(row=>{
+        const tr=document.createElement('tr');
+        const label=document.createElement('td'); label.className='assump-rowlabel';
+        label.textContent = row.label + (row.kind==='pct' ? ' (%)' : (row.unit ? ' ('+row.unit+')' : ''));
+        tr.appendChild(label);
+
+        if(row.shape===QTR){
+          const arr = getRef(row.path);
+          arr.forEach((v,i)=>{
+            const td=document.createElement('td');
+            td.appendChild(cellInput(v, row.kind, (nv)=>{ arr[i]=nv; }));
+            tr.appendChild(td);
+          });
+        } else {
+          const [parent,key]=getParent(row.path);
+          const td=document.createElement('td'); td.className='assump-scalar';
+          td.appendChild(cellInput(parent[key], row.kind, (nv)=>{ parent[key]=nv; }));
+          tr.appendChild(td);
+          const pad=document.createElement('td'); pad.colSpan=Q.length-1; tr.appendChild(pad);
+        }
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      sec.appendChild(table);
+      host.appendChild(sec);
+    });
+  }
+
+  /* Regenerates assumptions.js from the live objects. Comments inside the data
+     blocks are not preserved — only the file header is. */
+  function serialize(){
+    const arr = (a)=>'['+a.map(n=>+ (+n).toFixed(10)).join(',')+']';
+    const obj = (o, indent)=>{
+      const pad=' '.repeat(indent), padIn=' '.repeat(indent+2);
+      const parts = Object.entries(o).map(([k,v])=>{
+        if(Array.isArray(v)) return padIn+k+': '+(typeof v[0]==='string' ? JSON.stringify(v) : arr(v));
+        if(v && typeof v==='object') return padIn+k+': '+obj(v, indent+2);
+        return padIn+k+': '+JSON.stringify(v);
+      });
+      return '{\n'+parts.join(',\n')+'\n'+pad+'}';
+    };
+    return [
+      HEADER_COMMENT,
+      '',
+      'const Q = '+JSON.stringify(Q)+';',
+      'const HQ = '+JSON.stringify(HQ)+';',
+      'const N = '+N+';',
+      '',
+      'const FIXED = '+obj(FIXED,0)+';',
+      '',
+      'const CASES = '+obj(CASES,0)+';',
+      ''
+    ].join('\n');
+  }
+
+  const HEADER_COMMENT = `/* ============================================================================
+ * MODEL ASSUMPTIONS — the single source of truth for every number in the model.
+ *
+ * Edit here, or through the Assumptions panel on the dashboard, which writes
+ * this file back when the site is running locally. After editing by hand run:
+ *   npm run build
+ *
+ * Conventions:
+ *   - Money is $ millions per quarter unless a name says otherwise.
+ *   - Ratios are fractions, not percents (0.33 means 33%).
+ *   - Every forecast array has exactly 10 entries, Q326 -> Q428.
+ *   - "A" figures are reported actuals; change them only on a restatement.
+ *
+ * Origin: first derived from the workbook in reference/, which is a historical
+ * snapshot and is never read at build time — this file is authoritative.
+ * ==========================================================================*/`;
+
+  async function saveToFile(){
+    const status = document.getElementById('assump-status');
+    status.textContent = 'Saving…';
+    try{
+      const res = await fetch('/__save-assumptions', {
+        method:'POST', headers:{'content-type':'application/json'},
+        body: JSON.stringify({ source: serialize() })
+      });
+      if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'save failed');
+      dirty = false; updateDirty();
+      status.textContent = 'Saved to src/dashboard/assumptions.js';
+    } catch(err){
+      status.textContent = 'Could not save: '+(err.message||'unknown error');
+    }
+  }
+
+  function download(){
+    const blob = new Blob([serialize()], {type:'text/javascript'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download='assumptions.js';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function copy(){
+    const status = document.getElementById('assump-status');
+    try{ await navigator.clipboard.writeText(serialize()); status.textContent='Copied assumptions.js to clipboard'; }
+    catch{ status.textContent='Clipboard blocked — use Download instead'; }
+  }
+
+  function init(){
+    const card = document.getElementById('assumptions-card');
+    if(!card) return;
+    buildPanel();
+
+    // Only offer a file write when a dev server is actually there to accept it.
+    const isLocal = ['localhost','127.0.0.1'].includes(location.hostname);
+    const saveBtn = document.getElementById('assump-save');
+    if(isLocal){
+      saveBtn.addEventListener('click', saveToFile);
+    } else {
+      saveBtn.remove();
+      const note = document.getElementById('assump-local-note');
+      if(note) note.textContent = 'Edits apply to your session only. Use Copy or Download to keep them.';
+    }
+    document.getElementById('assump-copy').addEventListener('click', copy);
+    document.getElementById('assump-download').addEventListener('click', download);
+    document.getElementById('assump-reset').addEventListener('click', ()=>{ location.reload(); });
+  }
+
+  init();
+})();
 
 })();
 </script>
