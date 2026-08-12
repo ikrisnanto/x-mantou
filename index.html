@@ -1199,8 +1199,14 @@ window.addEventListener('resize', renderAll);
   async function verifyAdminToken(token){
     try{
       const res = await fetch(API+'/verify', { method:'POST', headers:{'X-Admin-Token': token} });
-      return res.ok;
-    } catch { return false; }
+      return { ok: res.ok, status: res.status };
+    } catch { return { ok:false, status:0 }; }
+  }
+  function adminErrorText(status){
+    if(status===429) return 'Too many attempts — wait a few minutes and try again.';
+    if(status===501) return 'Admin delete is not configured on this deployment.';
+    if(status===0)   return 'Could not reach the server.';
+    return 'That token was not accepted.';
   }
 
   function getMyVotes(){
@@ -1377,12 +1383,13 @@ window.addEventListener('resize', renderAll);
         const token = input.value.trim();
         if(!token){ msg.textContent = 'Enter the admin token.'; return; }
         msg.textContent = 'Checking…';
-        if(await verifyAdminToken(token)){
+        const check = await verifyAdminToken(token);
+        if(check.ok){
           adminToken = token; setStoredAdminToken(token);
           msg.textContent = '';
           await load();
         } else {
-          msg.textContent = 'That token was not accepted.';
+          msg.textContent = adminErrorText(check.status);
         }
       });
       const signOut = adminBar.querySelector('#admin-signout');
@@ -1438,8 +1445,13 @@ window.addEventListener('resize', renderAll);
   // Re-validate any saved admin token against the server before trusting it.
   (async function init(){
     const saved = storedAdminToken();
-    if(saved && await verifyAdminToken(saved)) adminToken = saved;
-    else if(saved) setStoredAdminToken(null);
+    if(saved){
+      const check = await verifyAdminToken(saved);
+      if(check.ok) adminToken = saved;
+      // Only an outright rejection clears the saved token. A rate-limited or
+      // unreachable check is transient and must not sign the admin out.
+      else if(check.status === 401) setStoredAdminToken(null);
+    }
     load();
   })();
 

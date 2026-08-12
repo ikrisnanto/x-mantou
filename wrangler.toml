@@ -1,5 +1,7 @@
 name = "x-mantou"
 pages_build_output_dir = "dist"
+compatibility_date = "2026-08-12"
+compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "x_mantou_comments"
