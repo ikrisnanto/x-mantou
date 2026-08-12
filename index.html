@@ -252,6 +252,7 @@
   .comment-form-footer{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
   .comment-char-count{ font-size:11.5px; color:var(--text-faint); font-family:var(--mono); }
   .comment-submit-error{ font-size:12.5px; color:var(--bad); }
+  .turnstile-host{ min-height:65px; }
 
   .comment-list{ display:flex; flex-direction:column; gap:2px; }
   .comment-item{ display:flex; gap:12px; padding:14px 2px; border-bottom:1px solid var(--border); }
@@ -1165,14 +1166,10 @@ window.addEventListener('resize', renderAll);
   const root = document.getElementById('comments-root');
   const API = '/api/comments';
 
-  function getVoterId(){
-    let id = localStorage.getItem('xmantou_voter_id');
-    if(!id){
-      id = (crypto.randomUUID ? crypto.randomUUID() : 'v-'+Math.random().toString(36).slice(2)+Date.now());
-      localStorage.setItem('xmantou_voter_id', id);
-    }
-    return id;
-  }
+  let sitekey = null;      // supplied by the API when a bot check is configured
+  let turnstileReady = false;
+  let widgetId = null;
+
   function getMyVotes(){
     try { return JSON.parse(localStorage.getItem('xmantou_my_votes')||'{}'); } catch { return {}; }
   }
@@ -1199,12 +1196,39 @@ window.addEventListener('resize', renderAll);
     root.innerHTML = '<div class="comments-fallback">Comments &amp; voting need the live backend on <a href="https://x-mantou.com" target="_blank" rel="noopener">x-mantou.com</a> — they\'re not available on this preview/artifact link.</div>';
   }
 
+  // Loaded only once the API has confirmed a sitekey, so preview/artifact
+  // copies never reach out for a script they cannot use.
+  function loadTurnstile(){
+    return new Promise((resolve)=>{
+      if(turnstileReady || !sitekey) return resolve(turnstileReady);
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true; s.defer = true;
+      s.onload = ()=>{ turnstileReady = true; resolve(true); };
+      s.onerror = ()=>{ resolve(false); };
+      document.head.appendChild(s);
+    });
+  }
+
+  async function mountTurnstile(){
+    const host = document.getElementById('turnstile-host');
+    if(!host || !sitekey) return;
+    const ok = await loadTurnstile();
+    if(!ok || !window.turnstile) return;
+    widgetId = window.turnstile.render(host, {
+      sitekey: sitekey,
+      theme: 'auto',
+      size: 'flexible'
+    });
+  }
+
   function renderComments(list){
     const myVotes = getMyVotes();
     const formHtml =
       '<form class="comment-form" id="comment-form">'+
         '<div class="comment-form-row"><input type="text" id="comment-author" maxlength="60" placeholder="Name (optional)"></div>'+
         '<textarea id="comment-body" maxlength="2000" placeholder="Add a comment or suggestion…" required></textarea>'+
+        (sitekey ? '<div id="turnstile-host" class="turnstile-host"></div>' : '')+
         '<div class="comment-form-footer">'+
           '<span class="comment-char-count" id="comment-char-count">0 / 2000</span>'+
           '<span style="display:flex; align-items:center; gap:10px;">'+
@@ -1251,16 +1275,25 @@ window.addEventListener('resize', renderAll);
       const body = bodyInput.value.trim();
       if(!body){ submitErr.textContent = 'Say something first.'; return; }
       const btn = form.querySelector('button[type=submit]');
+
+      let token = '';
+      if(sitekey){
+        token = (window.turnstile && widgetId!==null) ? window.turnstile.getResponse(widgetId) : '';
+        if(!token){ submitErr.textContent = 'Complete the bot check above first.'; return; }
+      }
+
       btn.disabled = true;
       try{
         const res = await fetch(API, {
           method:'POST', headers:{'content-type':'application/json'},
-          body: JSON.stringify({ author, body })
+          body: JSON.stringify({ author, body, turnstileToken: token })
         });
         if(!res.ok){ const e2 = await res.json().catch(()=>({})); throw new Error(e2.error||'Failed to post comment'); }
         await load();
       } catch(err){
         submitErr.textContent = err.message || 'Failed to post comment';
+        // A token is single-use; reset so the next attempt gets a fresh one.
+        if(window.turnstile && widgetId!==null) window.turnstile.reset(widgetId);
       } finally {
         btn.disabled = false;
       }
@@ -1275,7 +1308,7 @@ window.addEventListener('resize', renderAll);
         try{
           const res = await fetch(API+'/'+id+'/vote', {
             method:'POST', headers:{'content-type':'application/json'},
-            body: JSON.stringify({ voterId: getVoterId(), direction: dir })
+            body: JSON.stringify({ direction: dir })
           });
           if(!res.ok) throw new Error('vote failed');
           const data = await res.json();
@@ -1298,7 +1331,9 @@ window.addEventListener('resize', renderAll);
       const res = await fetch(API);
       if(!res.ok) throw new Error('bad response');
       const data = await res.json();
+      if(data.turnstileSitekey) sitekey = data.turnstileSitekey;
       renderComments(data.comments||[]);
+      mountTurnstile();
     } catch(err){
       renderFallback();
     }

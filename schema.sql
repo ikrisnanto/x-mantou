@@ -17,3 +17,14 @@ CREATE TABLE IF NOT EXISTS votes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_votes_comment ON votes(comment_id);
+
+-- Per-IP rate limiting. The IP is stored only as a salted SHA-256 hash so the
+-- raw address is never persisted; rows are pruned opportunistically on write.
+CREATE TABLE IF NOT EXISTS rate_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip_hash TEXT NOT NULL,
+  action TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_events_lookup ON rate_events(ip_hash, action, created_at);
