@@ -1,0 +1,24 @@
+    <section class="card" id="assumptions-card">
+      <div class="card-head">
+        <h2>Model assumptions</h2>
+        <div class="card-note">Forecast drivers &middot; reported actuals are not editable</div>
+      </div>
+      <p class="card-intro">
+        Every structural driver behind the model. Edit any cell and the tables and charts above update
+        immediately &mdash; that preview is yours alone until you publish. <b>Publish to live site</b> saves
+        these values to the database so every visitor sees them; <b>Revert to defaults</b> drops the saved
+        values and returns the site to the figures committed in <code>assumptions.js</code>.
+        <span id="assump-local-note"></span>
+      </p>
+      <div class="assump-actions">
+        <button type="button" class="btn small primary" id="assump-publish">Publish to live site</button>
+        <button type="button" class="btn small" id="assump-revert">Revert to defaults</button>
+        <button type="button" class="btn small" id="assump-copy">Copy</button>
+        <button type="button" class="btn small" id="assump-download">Download</button>
+        <button type="button" class="btn small ghost" id="assump-reset">Discard changes</button>
+        <span class="assump-dirty" id="assump-dirty"></span>
+        <span class="assump-status" id="assump-status"></span>
+      </div>
+      <div class="table-scroll"><div id="assumptions-body"></div></div>
+    </section>
+

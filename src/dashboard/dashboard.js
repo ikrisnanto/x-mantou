@@ -213,7 +213,6 @@ function fmtAutoUSD(x){
   return (x<0?'-':'')+'$'+Math.round(abs).toLocaleString('en-US')+'M';
 }
 function fmtGW(x){ return x.toFixed(1)+' GW'; }
-function fmtRateB(x){ return '$'+((x*4)/1000).toFixed(1)+'B/GW/yr'; }
 
 /* ============================= INPUT TABLES ============================= */
 function buildQTable(container, arr, opts){
@@ -268,10 +267,10 @@ function updatePresetUI(){
 function updateModeUI(){
   document.querySelectorAll('#mode-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.mode===state.mode));
   if(state.mode==='longterm'){
-    modeHint.textContent = "Annual rate, recognized 1/4 per quarter, applied uniformly to the whole revenue-generating GW base — a stable contracted price.";
+    modeHint.textContent = "What one gigawatt earns in a year, the same for every gigawatt — as if it were all on long-term contract.";
     spotExtra.style.display='none';
   } else {
-    modeHint.textContent = "Annual rate new GW is sold at when it lands. Each vintage glides toward the long-term rate below over your convergence window.";
+    modeHint.textContent = "What newly built capacity sells for when it comes online. Older capacity drifts toward the long-run price below.";
     spotExtra.style.display='flex';
   }
   buildQTable(tblRate, activeRateArray(), {step:'200', scale:0.25});
@@ -647,9 +646,37 @@ function renderAll(){
   renderBSTable(m);
 }
 
+/* Published assumptions, if an admin has saved any, become the live model for
+   everyone. Applied before the first render; on any failure the built-in
+   defaults simply stand. */
+function applyOverrides(o){
+  if(!o) return 0;
+  let n=0;
+  Object.entries(o).forEach(([path,val])=>{
+    const keys=path.split('.');
+    const leaf=keys.pop();
+    const parent=keys.reduce((acc,k)=>acc && acc[k], FIXED);
+    if(!parent || !(leaf in parent)) return;
+    const cur=parent[leaf];
+    if(Array.isArray(cur) && Array.isArray(val) && val.length===cur.length){ parent[leaf]=val.slice(); n++; }
+    else if(typeof cur==='number' && typeof val==='number'){ parent[leaf]=val; n++; }
+  });
+  return n;
+}
+
 buildSidebar();
 renderAll();
 window.addEventListener('resize', renderAll);
+
+fetch('/api/assumptions')
+  .then(r=>r.ok ? r.json() : null)
+  .then(d=>{
+    if(d && d.overrides && applyOverrides(d.overrides)>0){
+      renderAll();
+      if(typeof window.__onAssumptionsLoaded==='function') window.__onAssumptionsLoaded();
+    }
+  })
+  .catch(()=>{});
 
 /* ============================= COMMENTS ============================= */
 (function(){
@@ -659,25 +686,16 @@ window.addEventListener('resize', renderAll);
   let sitekey = null;      // supplied by the API when a bot check is configured
   let turnstileReady = false;
   let widgetId = null;
-  let adminToken = null;   // set only after the server validates it
-
-  function storedAdminToken(){
-    try { return localStorage.getItem('xmantou_admin_token') || null; } catch { return null; }
-  }
-  function setStoredAdminToken(t){
-    try { if(t) localStorage.setItem('xmantou_admin_token', t); else localStorage.removeItem('xmantou_admin_token'); } catch {}
-  }
-  async function verifyAdminToken(token){
+  // Moderation is gated by the Cloudflare Access session on this page; there is
+  // no token to hold client-side.
+  let adminEmail = null;
+  async function checkAdminSession(){
     try{
-      const res = await fetch(API+'/verify', { method:'POST', headers:{'X-Admin-Token': token} });
-      return { ok: res.ok, status: res.status };
-    } catch { return { ok:false, status:0 }; }
-  }
-  function adminErrorText(status){
-    if(status===429) return 'Too many attempts — wait a few minutes and try again.';
-    if(status===501) return 'Admin delete is not configured on this deployment.';
-    if(status===0)   return 'Could not reach the server.';
-    return 'That token was not accepted.';
+      const res = await fetch(API+'/whoami', { method:'POST' });
+      if(!res.ok) return null;
+      const d = await res.json();
+      return d.email || 'admin';
+    } catch { return null; }
   }
 
   function getMyVotes(){
@@ -748,18 +766,11 @@ window.addEventListener('resize', renderAll);
         '</div>'+
       '</form>';
 
-    const adminMode = location.hash === '#admin';
-    const adminBarHtml = adminToken
-      ? '<div class="admin-bar" id="admin-bar"><span class="admin-badge">Admin mode</span>'+
-          '<span class="admin-note">Delete controls are visible on each comment.</span>'+
-          '<button type="button" class="btn small" id="admin-signout">Sign out</button></div>'
-      : (adminMode
-          ? '<div class="admin-bar" id="admin-bar">'+
-              '<input type="password" id="admin-token-input" placeholder="Admin token" autocomplete="off">'+
-              '<button type="button" class="btn small primary" id="admin-unlock">Unlock</button>'+
-              '<span class="admin-msg" id="admin-msg"></span>'+
-            '</div>'
-          : '');
+    const adminBarHtml = adminEmail
+      ? '<div class="admin-bar" id="admin-bar"><span class="admin-badge">Moderating</span>'+
+          '<span class="admin-note">Signed in as '+escapeHtml(adminEmail)+' &middot; delete controls are shown on each comment.</span>'+
+        '</div>'
+      : '';
 
     const listHtml = list.length===0
       ? '<div class="comments-empty">No comments yet — be the first.</div>'
@@ -778,7 +789,7 @@ window.addEventListener('resize', renderAll);
             '</div>'+
             '<div class="comment-body-col">'+
               '<div class="comment-meta"><span class="comment-author">'+escapeHtml(c.author)+'</span><span class="comment-time">'+timeAgo(c.created_at)+'</span>'+
-                (adminToken ? '<button class="comment-delete" data-del="'+c.id+'" aria-label="Delete comment">Delete</button>' : '')+
+                (adminEmail ? '<button class="comment-delete" data-del="'+c.id+'" aria-label="Delete comment">Delete</button>' : '')+
               '</div>'+
               '<div class="comment-text">'+escapeHtml(c.body)+'</div>'+
             '</div>'+
@@ -830,10 +841,10 @@ window.addEventListener('resize', renderAll);
         if(!confirm('Delete this comment permanently?')) return;
         btn.disabled = true;
         try{
-          const res = await fetch(API+'/'+id, { method:'DELETE', headers:{'X-Admin-Token': adminToken} });
+          const res = await fetch(API+'/'+id, { method:'DELETE' });
           if(!res.ok){
             const e = await res.json().catch(()=>({}));
-            if(res.status===401){ adminToken=null; setStoredAdminToken(null); }
+            if(res.status===401){ adminEmail=null; }
             throw new Error(e.error||'Delete failed');
           }
           await load();
@@ -843,31 +854,6 @@ window.addEventListener('resize', renderAll);
         }
       });
     });
-
-    const adminBar = document.getElementById('admin-bar');
-    if(adminBar){
-      // Only the locked state has these controls; the unlocked state has none.
-      const unlockBtn = adminBar.querySelector('#admin-unlock');
-      if(unlockBtn) unlockBtn.addEventListener('click', async ()=>{
-        const input = adminBar.querySelector('#admin-token-input');
-        const msg = adminBar.querySelector('#admin-msg');
-        const token = input.value.trim();
-        if(!token){ msg.textContent = 'Enter the admin token.'; return; }
-        msg.textContent = 'Checking…';
-        const check = await verifyAdminToken(token);
-        if(check.ok){
-          adminToken = token; setStoredAdminToken(token);
-          msg.textContent = '';
-          await load();
-        } else {
-          msg.textContent = adminErrorText(check.status);
-        }
-      });
-      const signOut = adminBar.querySelector('#admin-signout');
-      if(signOut) signOut.addEventListener('click', async ()=>{
-        adminToken = null; setStoredAdminToken(null); await load();
-      });
-    }
 
     root.querySelectorAll('.vote-btn').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
@@ -887,7 +873,7 @@ window.addEventListener('resize', renderAll);
           item.querySelector('.vote-score').textContent = score;
           item.querySelector('.vote-btn.up').classList.toggle('active', data.myVote===1);
           item.querySelector('.vote-btn.down').classList.toggle('active', data.myVote===-1);
-        } catch(err){
+        } catch {
           /* silent fail, leave UI as-is */
         } finally {
           item.querySelectorAll('.vote-btn').forEach(b=>b.disabled=false);
@@ -904,7 +890,7 @@ window.addEventListener('resize', renderAll);
       const res = await fetch(API);
       if(!res.ok) throw new Error('bad response');
       data = await res.json();
-    } catch(err){
+    } catch {
       renderFallback();
       return;
     }
@@ -913,20 +899,11 @@ window.addEventListener('resize', renderAll);
     mountTurnstile();
   }
 
-  // Re-validate any saved admin token against the server before trusting it.
   (async function init(){
-    const saved = storedAdminToken();
-    if(saved){
-      const check = await verifyAdminToken(saved);
-      if(check.ok) adminToken = saved;
-      // Only an outright rejection clears the saved token. A rate-limited or
-      // unreachable check is transient and must not sign the admin out.
-      else if(check.status === 401) setStoredAdminToken(null);
-    }
+    adminEmail = await checkAdminSession();
     load();
   })();
 
-  window.addEventListener('hashchange', ()=>{ if(!adminToken) load(); });
 })();
 
 
@@ -1031,6 +1008,14 @@ window.addEventListener('resize', renderAll);
       sec.appendChild(h);
 
       const table = document.createElement('table'); table.className='assump-table';
+
+      // Identical column geometry in every group — with table-layout:fixed this
+      // is what makes a single-value box line up with the quarter boxes above it.
+      const cg = document.createElement('colgroup');
+      const cLabel = document.createElement('col'); cLabel.className='col-label'; cg.appendChild(cLabel);
+      for(let i=0;i<Q.length;i++) cg.appendChild(document.createElement('col'));
+      table.appendChild(cg);
+
       if(g.rows.some(r=>r.shape===QTR)){
         const thead=document.createElement('thead');
         const tr=document.createElement('tr');
@@ -1058,7 +1043,7 @@ window.addEventListener('resize', renderAll);
           const td=document.createElement('td'); td.className='assump-scalar';
           td.appendChild(cellInput(parent[key], row.kind, (nv)=>{ parent[key]=nv; }));
           tr.appendChild(td);
-          const pad=document.createElement('td'); pad.colSpan=Q.length-1; tr.appendChild(pad);
+          const pad=document.createElement('td'); pad.className='assump-pad'; pad.colSpan=Q.length-1; tr.appendChild(pad);
         }
         tbody.appendChild(tr);
       });
@@ -1112,19 +1097,45 @@ window.addEventListener('resize', renderAll);
  * snapshot and is never read at build time — this file is authoritative.
  * ==========================================================================*/`;
 
-  async function saveToFile(){
+  // Collects the current values of every editable driver, in the shape the
+  // API validates against.
+  function collectOverrides(){
+    const out = {};
+    GROUPS.forEach(g=>g.rows.forEach(r=>{
+      out[r.path] = r.shape===QTR ? getRef(r.path).slice() : getRef(r.path);
+    }));
+    return out;
+  }
+
+  async function publish(){
     const status = document.getElementById('assump-status');
-    status.textContent = 'Saving…';
+    status.textContent = 'Publishing…';
     try{
-      const res = await fetch('/__save-assumptions', {
+      const res = await fetch('/api/assumptions', {
         method:'POST', headers:{'content-type':'application/json'},
-        body: JSON.stringify({ source: serialize() })
+        body: JSON.stringify({ overrides: collectOverrides() })
       });
-      if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'save failed');
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error || 'publish failed');
       dirty = false; updateDirty();
-      status.textContent = 'Saved to src/dashboard/assumptions.js';
+      status.textContent = 'Published — every visitor now sees these assumptions.';
     } catch(err){
-      status.textContent = 'Could not save: '+(err.message||'unknown error');
+      status.textContent = 'Could not publish: '+(err.message||'unknown error');
+    }
+  }
+
+  async function revert(){
+    if(!confirm('Drop the published assumptions and return the site to the committed defaults?')) return;
+    const status = document.getElementById('assump-status');
+    status.textContent = 'Reverting…';
+    try{
+      const res = await fetch('/api/assumptions', { method:'DELETE' });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error || 'revert failed');
+      status.textContent = 'Reverted to defaults. Reloading…';
+      setTimeout(()=>location.reload(), 900);
+    } catch(err){
+      status.textContent = 'Could not revert: '+(err.message||'unknown error');
     }
   }
 
@@ -1147,16 +1158,8 @@ window.addEventListener('resize', renderAll);
     if(!card) return;
     buildPanel();
 
-    // Only offer a file write when a dev server is actually there to accept it.
-    const isLocal = ['localhost','127.0.0.1'].includes(location.hostname);
-    const saveBtn = document.getElementById('assump-save');
-    if(isLocal){
-      saveBtn.addEventListener('click', saveToFile);
-    } else {
-      saveBtn.remove();
-      const note = document.getElementById('assump-local-note');
-      if(note) note.textContent = 'Edits apply to your session only. Use Copy or Download to keep them.';
-    }
+    document.getElementById('assump-publish').addEventListener('click', publish);
+    document.getElementById('assump-revert').addEventListener('click', revert);
     document.getElementById('assump-copy').addEventListener('click', copy);
     document.getElementById('assump-download').addEventListener('click', download);
     document.getElementById('assump-reset').addEventListener('click', ()=>{ location.reload(); });

@@ -28,3 +28,12 @@ CREATE TABLE IF NOT EXISTS rate_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rate_events_lookup ON rate_events(ip_hash, action, created_at);
+
+-- Published model assumptions. A single row (id=1) holding the admin-saved
+-- overrides; when absent the built-in defaults from assumptions.js apply.
+CREATE TABLE IF NOT EXISTS assumptions (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_by TEXT
+);

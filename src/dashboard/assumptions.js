@@ -18,6 +18,9 @@
  * authoritative and is never read at build time — this file is.
  * ==========================================================================*/
 
+/* eslint-disable no-unused-vars -- Q, HQ, N, FIXED and CASES are consumed by
+   dashboard.js once build.js concatenates both files into one scope. */
+
 const Q = ["Q326","Q426","Q127","Q227","Q327","Q427","Q128","Q228","Q328","Q428"];
 const HQ = ["Q225","Q126","Q226"];
 const N = 10;
