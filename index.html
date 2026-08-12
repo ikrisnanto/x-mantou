@@ -254,6 +254,25 @@
   .comment-submit-error{ font-size:12.5px; color:var(--bad); }
   .turnstile-host{ min-height:65px; }
 
+  .admin-bar{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;
+    padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2);
+  }
+  .admin-bar input{
+    font-family:var(--sans); font-size:13.5px; background:var(--surface); border:1px solid var(--border);
+    border-radius:6px; padding:7px 9px; color:var(--text); width:220px; max-width:100%;
+  }
+  .admin-bar input:focus-visible{ outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
+  .admin-badge{ font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--accent); }
+  .admin-note, .admin-msg{ font-size:12.5px; color:var(--text-dim); }
+  .comment-delete{
+    margin-left:auto; font-family:var(--sans); font-size:11.5px; font-weight:700; color:var(--bad);
+    background:transparent; border:1px solid color-mix(in srgb, var(--bad) 45%, transparent);
+    border-radius:5px; padding:2px 8px; cursor:pointer;
+  }
+  .comment-delete:hover{ background:color-mix(in srgb, var(--bad) 14%, transparent); }
+  .comment-delete:focus-visible{ outline:2px solid var(--bad); outline-offset:1px; }
+
   .comment-list{ display:flex; flex-direction:column; gap:2px; }
   .comment-item{ display:flex; gap:12px; padding:14px 2px; border-bottom:1px solid var(--border); }
   .comment-item:last-child{ border-bottom:none; }
@@ -1169,6 +1188,20 @@ window.addEventListener('resize', renderAll);
   let sitekey = null;      // supplied by the API when a bot check is configured
   let turnstileReady = false;
   let widgetId = null;
+  let adminToken = null;   // set only after the server validates it
+
+  function storedAdminToken(){
+    try { return localStorage.getItem('xmantou_admin_token') || null; } catch { return null; }
+  }
+  function setStoredAdminToken(t){
+    try { if(t) localStorage.setItem('xmantou_admin_token', t); else localStorage.removeItem('xmantou_admin_token'); } catch {}
+  }
+  async function verifyAdminToken(token){
+    try{
+      const res = await fetch(API+'/verify', { method:'POST', headers:{'X-Admin-Token': token} });
+      return res.ok;
+    } catch { return false; }
+  }
 
   function getMyVotes(){
     try { return JSON.parse(localStorage.getItem('xmantou_my_votes')||'{}'); } catch { return {}; }
@@ -1238,6 +1271,19 @@ window.addEventListener('resize', renderAll);
         '</div>'+
       '</form>';
 
+    const adminMode = location.hash === '#admin';
+    const adminBarHtml = adminToken
+      ? '<div class="admin-bar" id="admin-bar"><span class="admin-badge">Admin mode</span>'+
+          '<span class="admin-note">Delete controls are visible on each comment.</span>'+
+          '<button type="button" class="btn small" id="admin-signout">Sign out</button></div>'
+      : (adminMode
+          ? '<div class="admin-bar" id="admin-bar">'+
+              '<input type="password" id="admin-token-input" placeholder="Admin token" autocomplete="off">'+
+              '<button type="button" class="btn small primary" id="admin-unlock">Unlock</button>'+
+              '<span class="admin-msg" id="admin-msg"></span>'+
+            '</div>'
+          : '');
+
     const listHtml = list.length===0
       ? '<div class="comments-empty">No comments yet — be the first.</div>'
       : '<div class="comment-list">'+list.map(c=>{
@@ -1254,13 +1300,15 @@ window.addEventListener('resize', renderAll);
               '</button>'+
             '</div>'+
             '<div class="comment-body-col">'+
-              '<div class="comment-meta"><span class="comment-author">'+escapeHtml(c.author)+'</span><span class="comment-time">'+timeAgo(c.created_at)+'</span></div>'+
+              '<div class="comment-meta"><span class="comment-author">'+escapeHtml(c.author)+'</span><span class="comment-time">'+timeAgo(c.created_at)+'</span>'+
+                (adminToken ? '<button class="comment-delete" data-del="'+c.id+'" aria-label="Delete comment">Delete</button>' : '')+
+              '</div>'+
               '<div class="comment-text">'+escapeHtml(c.body)+'</div>'+
             '</div>'+
           '</div>';
         }).join('')+'</div>';
 
-    root.innerHTML = formHtml + listHtml;
+    root.innerHTML = adminBarHtml + formHtml + listHtml;
 
     const form = document.getElementById('comment-form');
     const bodyInput = document.getElementById('comment-body');
@@ -1299,6 +1347,50 @@ window.addEventListener('resize', renderAll);
       }
     });
 
+    root.querySelectorAll('.comment-delete').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.del;
+        if(!confirm('Delete this comment permanently?')) return;
+        btn.disabled = true;
+        try{
+          const res = await fetch(API+'/'+id, { method:'DELETE', headers:{'X-Admin-Token': adminToken} });
+          if(!res.ok){
+            const e = await res.json().catch(()=>({}));
+            if(res.status===401){ adminToken=null; setStoredAdminToken(null); }
+            throw new Error(e.error||'Delete failed');
+          }
+          await load();
+        } catch(err){
+          alert(err.message||'Delete failed');
+          btn.disabled = false;
+        }
+      });
+    });
+
+    const adminBar = document.getElementById('admin-bar');
+    if(adminBar){
+      // Only the locked state has these controls; the unlocked state has none.
+      const unlockBtn = adminBar.querySelector('#admin-unlock');
+      if(unlockBtn) unlockBtn.addEventListener('click', async ()=>{
+        const input = adminBar.querySelector('#admin-token-input');
+        const msg = adminBar.querySelector('#admin-msg');
+        const token = input.value.trim();
+        if(!token){ msg.textContent = 'Enter the admin token.'; return; }
+        msg.textContent = 'Checking…';
+        if(await verifyAdminToken(token)){
+          adminToken = token; setStoredAdminToken(token);
+          msg.textContent = '';
+          await load();
+        } else {
+          msg.textContent = 'That token was not accepted.';
+        }
+      });
+      const signOut = adminBar.querySelector('#admin-signout');
+      if(signOut) signOut.addEventListener('click', async ()=>{
+        adminToken = null; setStoredAdminToken(null); await load();
+      });
+    }
+
     root.querySelectorAll('.vote-btn').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const item = btn.closest('.comment-item');
@@ -1327,19 +1419,31 @@ window.addEventListener('resize', renderAll);
   }
 
   async function load(){
+    let data;
+    // Only a failed fetch means "no backend here" — a rendering error must not
+    // be disguised as one, or real bugs show up as a misleading notice.
     try{
       const res = await fetch(API);
       if(!res.ok) throw new Error('bad response');
-      const data = await res.json();
-      if(data.turnstileSitekey) sitekey = data.turnstileSitekey;
-      renderComments(data.comments||[]);
-      mountTurnstile();
+      data = await res.json();
     } catch(err){
       renderFallback();
+      return;
     }
+    if(data.turnstileSitekey) sitekey = data.turnstileSitekey;
+    renderComments(data.comments||[]);
+    mountTurnstile();
   }
 
-  load();
+  // Re-validate any saved admin token against the server before trusting it.
+  (async function init(){
+    const saved = storedAdminToken();
+    if(saved && await verifyAdminToken(saved)) adminToken = saved;
+    else if(saved) setStoredAdminToken(null);
+    load();
+  })();
+
+  window.addEventListener('hashchange', ()=>{ if(!adminToken) load(); });
 })();
 
 })();
