@@ -1,13 +1,1073 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>x-mantou</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<title>SpaceX Business Case — Interactive P&amp;L &amp; Balance Sheet</title>
+<style>
+  :root{
+    --bg:#F5F7FA; --surface:#FFFFFF; --surface-2:#EBEFF3; --surface-3:#E1E7ED; --border:#D7DEE5;
+    --text:#10151B; --text-dim:#5B6774; --text-faint:#8993A1;
+    --space:#2a78d6; --connectivity:#1baf7a; --ai:#eb6834;
+    --good:#008300; --bad:#e34948; --warn:#b4691a;
+    --accent:#2a78d6; --accent-ink:#ffffff;
+    --shadow: 0 1px 2px rgba(16,21,27,0.06), 0 4px 16px rgba(16,21,27,0.06);
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0A0E14; --surface:#12171F; --surface-2:#1A212B; --surface-3:#222B36; --border:#29323D;
+      --text:#EDF1F5; --text-dim:#93A1B0; --text-faint:#5E6B7A;
+      --space:#3987e5; --connectivity:#199e70; --ai:#d95926;
+      --good:#3fbf3f; --bad:#e66767; --warn:#e0a53c;
+      --accent:#3987e5; --accent-ink:#04101f;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0A0E14; --surface:#12171F; --surface-2:#1A212B; --surface-3:#222B36; --border:#29323D;
+    --text:#EDF1F5; --text-dim:#93A1B0; --text-faint:#5E6B7A;
+    --space:#3987e5; --connectivity:#199e70; --ai:#d95926;
+    --good:#3fbf3f; --bad:#e66767; --warn:#e0a53c;
+    --accent:#3987e5; --accent-ink:#04101f;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    margin:0; padding:0; -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{ text-wrap:balance; margin:0; }
+  .num{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
+  a{ color:var(--accent); }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+    padding:18px 24px; border-bottom:1px solid var(--border); background:var(--surface);
+    flex-wrap:wrap;
+  }
+  .brand{ display:flex; flex-direction:column; gap:2px; }
+  .brand .eyebrow{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-faint); font-weight:700; }
+  .brand h1{ font-size:19px; font-weight:800; letter-spacing:-0.01em; }
+  .brand .sub{ font-size:12.5px; color:var(--text-dim); max-width:640px; }
+  .topbar .meta{ font-size:11.5px; color:var(--text-faint); text-align:right; line-height:1.5; }
+
+  /* ---------- Layout ---------- */
+  .layout{ display:grid; grid-template-columns: 322px 1fr; gap:0; align-items:start; }
+  @media (max-width: 920px){ .layout{ grid-template-columns: 1fr; } }
+
+  .sidebar{
+    position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+    border-right:1px solid var(--border); background:var(--surface); padding:18px 16px 40px;
+    display:flex; flex-direction:column; gap:18px;
+  }
+  @media (max-width:920px){ .sidebar{ position:static; max-height:none; border-right:none; border-bottom:1px solid var(--border);} }
+
+  .panel{ display:flex; flex-direction:column; gap:8px; }
+  .panel-title{ font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); display:flex; align-items:baseline; justify-content:space-between; gap:6px; }
+  .unit-badge{ font-size:9.5px; font-weight:700; letter-spacing:.03em; text-transform:none; color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); padding:2px 6px; border-radius:5px; white-space:nowrap; }
+  .panel-hint{ font-size:11.5px; color:var(--text-faint); line-height:1.45; }
+
+  .group-eyebrow{ font-size:9.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--text-faint); }
+  .group-title{ font-size:14px; font-weight:800; letter-spacing:-0.01em; color:var(--text); margin-top:1px; }
+  .group-hint{ font-size:11.5px; color:var(--text-dim); line-height:1.45; margin-bottom:2px; }
+
+  .preset-box{
+    display:flex; flex-direction:column; gap:8px;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:13px 14px;
+  }
+  .flow-arrow{
+    display:flex; align-items:center; gap:8px; color:var(--text-faint); font-size:10.5px; font-style:italic;
+    padding-left:4px;
+  }
+  .flow-arrow svg{ flex:none; color:var(--accent); opacity:.7; }
+
+  .custom-box{
+    display:flex; flex-direction:column; gap:10px;
+    background:var(--surface); border:1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius:10px;
+    padding:14px 12px 16px 15px; position:relative;
+  }
+  .custom-box::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px; border-radius:10px 0 0 10px;
+    background:var(--accent);
+  }
+
+  .preset-row{ display:flex; gap:6px; flex-wrap:wrap; }
+  .btn{
+    font-family:var(--sans); font-size:12px; font-weight:700; color:var(--text);
+    background:var(--surface-2); border:1px solid var(--border); border-radius:7px;
+    padding:7px 10px; cursor:pointer; transition:background .12s, border-color .12s;
+  }
+  .btn:hover{ background:var(--surface-3); }
+  .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.primary:hover{ filter:brightness(1.06); }
+  .btn.ghost{ background:transparent; }
+  .btn.small{ padding:5px 8px; font-size:11px; }
+
+  .qtable{ display:grid; grid-template-columns:repeat(10, minmax(52px,1fr)); gap:4px; overflow-x:auto; padding-bottom:2px; }
+  .qtable.qtable-narrow{ grid-template-columns:repeat(10, minmax(40px,1fr)); }
+  .qcell{ display:flex; flex-direction:column; gap:3px; min-width:52px; }
+  .qcell label{ font-size:8.5px; color:var(--text-faint); text-align:center; font-weight:700; }
+  .qcell input{
+    width:100%; font-family:var(--mono); font-size:10.5px; text-align:center;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:5px;
+    color:var(--text); padding:5px 1px; font-variant-numeric:tabular-nums;
+  }
+  .qcell input:focus-visible{ outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
+
+  .toggle{
+    display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; width:100%;
+  }
+  .toggle button{
+    flex:1; padding:8px 4px; font-family:var(--sans); font-size:11px; font-weight:700;
+    background:var(--surface-2); color:var(--text-dim); border:none; cursor:pointer; white-space:nowrap;
+  }
+  .toggle button.active{ background:var(--accent); color:var(--accent-ink); }
+
+  .field{ display:flex; flex-direction:column; gap:4px; }
+  .field-label{ font-size:11.5px; color:var(--text-dim); font-weight:600; display:flex; justify-content:space-between; }
+  .field input[type=number]{
+    font-family:var(--mono); font-size:12.5px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:6px; padding:6px 8px; color:var(--text); width:100%;
+  }
+  .field input[type=range]{ width:100%; accent-color:var(--accent); }
+
+  .divider{ height:1px; background:var(--border); margin:2px 0; }
+
+  /* ---------- Main content ---------- */
+  .main{ padding:22px 24px 60px; display:flex; flex-direction:column; gap:26px; min-width:0; }
+
+  .kpi-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+  @media (max-width:1180px){ .kpi-grid{ grid-template-columns:repeat(2, 1fr);} }
+  @media (max-width:520px){ .kpi-grid{ grid-template-columns:1fr;} }
+  .kpi{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+    display:flex; flex-direction:column; gap:4px; box-shadow:var(--shadow);
+  }
+  .kpi-label{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text-faint); }
+  .kpi-value{ font-size:21px; font-weight:700; font-family:var(--mono); letter-spacing:-0.01em; }
+  .kpi-sub{ font-size:11.5px; color:var(--text-dim); display:flex; align-items:center; gap:6px; }
+  .pill{ display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:99px; }
+  .pill.good{ background:color-mix(in srgb, var(--good) 16%, transparent); color:var(--good); }
+  .pill.bad{ background:color-mix(in srgb, var(--bad) 16%, transparent); color:var(--bad); }
+  .pill.warn{ background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }
+  .pill.neutral{ background:var(--surface-2); color:var(--text-dim); }
+
+  section.card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 18px 14px;
+    box-shadow:var(--shadow);
+  }
+  .card-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .card-head h2{ font-size:14.5px; font-weight:800; }
+  .card-head .card-note{ font-size:11.5px; color:var(--text-faint); }
+
+  .charts-row{ display:grid; grid-template-columns:1.3fr 1fr; gap:14px; }
+  @media (max-width:1080px){ .charts-row{ grid-template-columns:1fr; } }
+  .mini-charts{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px){ .mini-charts{ grid-template-columns:1fr; } }
+
+  .legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:var(--text-dim); }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  svg.chart{ width:100%; height:auto; overflow:visible; }
+  .gridline{ stroke:var(--border); stroke-width:1; }
+  .zeroline{ stroke:var(--text-faint); stroke-width:1; stroke-dasharray:2 2; }
+  .axis-label{ font-family:var(--mono); font-size:9.5px; fill:var(--text-faint); }
+  .hit{ fill:transparent; cursor:crosshair; }
+
+  .tooltip{
+    position:fixed; pointer-events:none; z-index:999; background:var(--surface-3);
+    border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:11.5px;
+    box-shadow:var(--shadow); opacity:0; transition:opacity .08s; max-width:220px;
+  }
+  .tooltip.show{ opacity:1; }
+  .tooltip .tt-title{ font-weight:800; font-size:11px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
+  .tooltip .tt-row{ display:flex; justify-content:space-between; gap:12px; font-family:var(--mono); }
+  .tooltip .tt-row .k{ display:flex; align-items:center; gap:5px; color:var(--text-dim); }
+  .tooltip .tt-total{ border-top:1px solid var(--border); margin-top:4px; padding-top:4px; font-weight:700; }
+
+  /* ---------- Tables ---------- */
+  .table-scroll{ overflow-x:auto; }
+  table.fin{ border-collapse:collapse; width:100%; min-width:920px; font-size:12px; }
+  table.fin th, table.fin td{ padding:6px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--border); }
+  table.fin thead th{
+    position:sticky; top:0; background:var(--surface-2); font-size:10px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim); z-index:2;
+  }
+  table.fin td.rowlabel, table.fin th.rowlabel{
+    text-align:left; position:sticky; left:0; background:var(--surface); z-index:1;
+    color:var(--text); font-weight:600; min-width:230px;
+  }
+  table.fin thead th.rowlabel{ background:var(--surface-2); z-index:3; }
+  table.fin tr.section td{ padding-top:14px; font-weight:800; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint); background:var(--surface); border-bottom:1px solid var(--border); }
+  table.fin tr.total td{ font-weight:800; border-top:1px solid var(--border); }
+  table.fin tr.memo td{ color:var(--text-dim); font-style:italic; }
+  table.fin td.num, table.fin th.num{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  table.fin td.neg{ color:var(--bad); }
+  table.fin td.hist{ color:var(--text-faint); }
+  table.fin col.hist-col{ background:var(--surface-2); }
+  table.fin thead th.divider-col, table.fin td.divider-col{ border-left:2px solid var(--border); }
+  table.fin.hist3 tbody td:nth-child(2), table.fin.hist3 tbody td:nth-child(3), table.fin.hist3 tbody td:nth-child(4){ background:var(--surface-2); }
+  table.fin.hist1 tbody td:nth-child(2){ background:var(--surface-2); }
+
+
+  footer.notes{
+    font-size:11.5px; color:var(--text-faint); line-height:1.6; padding:6px 4px 30px; max-width:920px;
+  }
+  footer.notes h3{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  footer.notes ul{ margin:4px 0 14px; padding-left:18px; }
+  footer.notes li{ margin-bottom:4px; }
+
+  .visually-hidden{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="eyebrow">Illustrative business case · not SpaceX guidance</div>
+    <h1>SpaceX P&amp;L &amp; Balance Sheet — Interactive AI Build-Out Model</h1>
+    <div class="sub">Actuals through Q2 2026 (SpaceX earnings release, Aug 4 2026), quarterly forecast to Q4 2028. Adjust the AI compute build-out, its pricing basis, and capex per GW in the panel — Space, Connectivity and everything below the AI line hold at the model's base-case assumptions.</div>
+  </div>
+  <div class="meta">$ in millions unless noted<br>Source: SpaceX Q2 2026 earnings release</div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+
+    <div class="preset-box">
+      <div class="group-eyebrow">Step 1 &middot; optional shortcut</div>
+      <div class="panel-title" style="margin-top:2px;">Load a preset</div>
+      <div class="panel-hint">Fills in the rate &amp; capex boxes below with one of the model's three built-in cases. The GW build-out is untouched — set that yourself.</div>
+      <div class="preset-row">
+        <button class="btn small" data-case="1">Case 1 · Conservative</button>
+        <button class="btn small" data-case="2">Case 2 · Mgmt-consistent</button>
+        <button class="btn small" data-case="3">Case 3 · High-capex</button>
+      </div>
+    </div>
+
+    <div class="flow-arrow" aria-hidden="true">
+      <svg width="14" height="20" viewBox="0 0 14 20"><path d="M7 0 V16 M1 11 L7 17 L13 11" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>prefills the fields below — every cell stays yours to edit</span>
+    </div>
+
+    <div class="custom-box">
+      <div class="group-eyebrow">Step 2 &middot; your scenario</div>
+      <div class="group-title">Custom scenario inputs</div>
+      <div class="group-hint">These three boxes are what actually drive every number on the right. Type into any cell.</div>
+
+      <div class="panel">
+        <div class="panel-title">AI compute build-out</div>
+        <div class="panel-hint">Nameplate compute, period end (GW). Actual at Q2'26A: 1.4 GW.</div>
+        <div class="qtable" id="tbl-gw"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="panel">
+        <div class="panel-title">AI revenue per GW <span class="unit-badge">$mm &middot; per year</span></div>
+        <div class="toggle" id="mode-toggle">
+          <button data-mode="longterm" class="active">Long-term contract</button>
+          <button data-mode="spot">Spot market</button>
+        </div>
+        <div class="panel-hint" id="mode-hint"></div>
+        <div class="qtable" id="tbl-rate"></div>
+        <div id="spot-extra" style="display:none; flex-direction:column; gap:10px; margin-top:4px;">
+          <div class="field">
+            <div class="field-label"><span>Long-term steady-state rate <span class="unit-badge">$mm/yr</span></span><span class="num" id="ltr-val"></span></div>
+            <input type="number" id="ltr-input" step="200" />
+          </div>
+          <div class="field">
+            <div class="field-label"><span>Convergence period</span><span class="num" id="conv-val"></span></div>
+            <input type="range" id="conv-input" min="3" max="5" step="0.5" />
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="panel">
+        <div class="panel-title">AI capex per incremental GW <span class="unit-badge">$bn</span></div>
+        <div class="panel-hint">$bn of capex per GW added that quarter (a single GW build runs $20&ndash;90bn). Drives cash burn and debt draws below.</div>
+        <div class="qtable" id="tbl-capex"></div>
+      </div>
+    </div>
+
+    <button class="btn ghost" id="reset-btn">Reset all to Case 1 defaults</button>
+  </aside>
+
+  <main class="main">
+
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Revenue by segment</h2>
+        <div class="card-note">Q2'25A – Q4'28E, $mm/quarter</div>
+      </div>
+      <div class="charts-row">
+        <div>
+          <div class="legend" style="margin-bottom:6px;">
+            <span class="legend-item"><span class="swatch" style="background:var(--space)"></span>Space</span>
+            <span class="legend-item"><span class="swatch" style="background:var(--connectivity)"></span>Connectivity</span>
+            <span class="legend-item"><span class="swatch" style="background:var(--ai)"></span>AI</span>
+          </div>
+          <div id="chart-revenue"></div>
+        </div>
+        <div>
+          <div class="legend" style="margin-bottom:6px;">
+            <span class="legend-item"><span class="swatch" style="background:var(--accent)"></span>Net income (loss)</span>
+          </div>
+          <div id="chart-netincome"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>AI compute build-out &amp; realized pricing</h2>
+        <div class="card-note">Forecast quarters, Q3'26E – Q4'28E</div>
+      </div>
+      <div class="mini-charts">
+        <div>
+          <div class="legend" style="margin-bottom:6px;"><span class="legend-item"><span class="swatch" style="background:var(--ai)"></span>Nameplate GW, period end</span></div>
+          <div id="chart-gw"></div>
+        </div>
+        <div>
+          <div class="legend" style="margin-bottom:6px;"><span class="legend-item"><span class="swatch" style="background:var(--accent)"></span>Realized AI $/GW/yr (blended)</span></div>
+          <div id="chart-rate"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Consolidated P&amp;L</h2>
+        <div class="card-note">$mm · shaded columns are reported actuals</div>
+      </div>
+      <div class="table-scroll"><table class="fin hist3" id="table-pl"></table></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Balance sheet (simplified projection)</h2>
+        <div class="card-note">$mm · actual column at Jun 30, 2026</div>
+      </div>
+      <div class="table-scroll"><table class="fin hist1" id="table-bs"></table></div>
+    </section>
+
+    <footer class="notes">
+      <h3>How this works</h3>
+      <ul>
+        <li><b>Long-term contract</b> mode applies your entered $/GW rate uniformly to the entire revenue-generating GW base each quarter — a stable, blended contract price, same mechanic the underlying model uses.</li>
+        <li><b>Spot market</b> mode treats your entered rate as the price new capacity is sold at when it comes online that quarter. Each quarter's incremental GW becomes its own "vintage," and its price glides linearly toward the long-term steady-state rate over your chosen convergence window (3–5 years). The blended rate you see is the GW-weighted average across all vintages live that quarter — it can stay above or below the long-term rate for a while if new, richly-priced capacity keeps arriving faster than old vintages converge.</li>
+        <li>Space, Connectivity, AI cost ratios, D&amp;A, financing and below-the-line items hold at the model's base-case schedule and are not user-editable here.</li>
+        <li>Depreciation on new capex starts 2 quarters after spend (build/ramp lag) and runs at 0.7×(1/20)+0.3×(1/56) of that quarter's total capex per quarter thereafter (70% IT equipment over 5 years, 30% facility over 14 years), consistent with the source model.</li>
+        <li>Cash, debt and interest are a full roll-forward: new debt draws automatically whenever cash would fall under the $15,000mm minimum buffer, at 6.5%/yr; existing $39,364mm of debt accrues at 5.5%/yr; cash & securities earn 4%/yr.</li>
+        <li>The balance sheet holds "other assets" and "other liabilities" flat at their Jun 30, 2026 actual level (no working-capital or deferred-revenue modeling) and solves equity as the balancing plug; the memo row below it shows how much of the equity movement is net income versus other reconciling items (chiefly the model's $3,681mm/quarter legacy non-cash add-back, which increases cash but isn't charged against forecast-period net income).</li>
+        <li>This is an illustrative business-case model, not SpaceX guidance or analyst consensus. Adapted from a broader model built in Claude; all forecast figures are scenario outputs of the inputs you set above.</li>
+      </ul>
+    </footer>
+  </main>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================= ENGINE ============================= */
+const Q = ["Q3'26E","Q4'26E","Q1'27E","Q2'27E","Q3'27E","Q4'27E","Q1'28E","Q2'28E","Q3'28E","Q4'28E"];
+const HQ = ["Q2'25A","Q1'26A","Q2'26A"];
+const N = 10;
+
+const FIXED = {
+  space: {
+    revGrowth: [0.10,0.12,0.10,0.09,0.08,0.08,0.07,0.07,0.06,0.06],
+    cogsPct:   [0.33,0.32,0.31,0.30,0.30,0.29,0.28,0.28,0.27,0.27],
+    rndPct:    [1.00,0.90,0.80,0.70,0.62,0.55,0.50,0.46,0.42,0.39],
+    sgaPct:    [0.10,0.10,0.09,0.09,0.09,0.08,0.08,0.08,0.07,0.07],
+    capexPct:  [1.00,0.90,0.75,0.65,0.55,0.50,0.45,0.40,0.38,0.35],
+    revQ226A: 962
+  },
+  connectivity: {
+    subAdds:   [1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3,1.2,1.2],
+    arpu:      [65,65,64,64,63,63,62,62,61,61],
+    entGovGrowth: [0.20,0.18,0.15,0.13,0.12,0.11,0.10,0.10,0.09,0.09],
+    cogsPct:   [0.47,0.46,0.45,0.44,0.43,0.42,0.41,0.41,0.40,0.40],
+    rndPct:    [0.065,0.062,0.060,0.058,0.056,0.055,0.054,0.053,0.052,0.051],
+    sgaPct:    [0.06,0.058,0.056,0.054,0.052,0.05,0.049,0.048,0.047,0.046],
+    capexPct:  [0.30,0.29,0.28,0.27,0.26,0.25,0.24,0.24,0.23,0.23],
+    subsQ226A: 12, entGovQ226A: 1806
+  },
+  ai: {
+    cogsPct:   [0.40,0.39,0.38,0.37,0.36,0.35,0.34,0.34,0.33,0.33],
+    rndPct:    [0.75,0.65,0.58,0.52,0.47,0.43,0.40,0.37,0.35,0.33],
+    sgaPct:    [0.18,0.16,0.15,0.14,0.13,0.12,0.11,0.11,0.10,0.10],
+    monetizable: [0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9],
+    grok:      [700,900,1150,1400,1650,1900,2150,2400,2650,2900],
+    cursor:    [0,1200,1500,1800,2100,2400,2700,3000,3300,3600],
+    adGrowth:  [-0.02,0,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.02],
+    adQ226A: 367, nameplateQ226A: 1.4
+  },
+  financing: {
+    itShare: 0.7, itLife: 20, facilityLife: 56,
+    legacyAddback: 3681, existingDebt: 39364, existingRate: 0.055, newRate: 0.065,
+    cashYield: 0.04, minCash: 15000, openingCash: 100009,
+    otherIncome: [-50,-50,-30,-20,-10,0,0,0,0,0],
+    tax: [20,20,20,20,20,20,20,20,20,20]
+  },
+  balanceQ226A: { cash: 93522, securities: 6487, ppe: 65736, totalAssets: 192770, totalLiab: 65546, equity: 127224 },
+  historical: {
+    quarters: HQ,
+    space:        [746, 619, 962],
+    connectivity: [2588, 3257, 4291],
+    ai:           [737, 818, 2561],
+    netIncome:    [-1008, -4276, -541],
+    aiNameplateGW:[0.4, 1.0, 1.4]
+  }
+};
+
+const CASES = {
+  1: { name: "Case 1 — Conservative",
+       rate: [2800,2900,2900,2850,2800,2750,2650,2550,2450,2400],
+       spot: [3200,3300,3300,3200,3150,3100,3000,2900,2800,2700],
+       capexGW: [32000,30000,28000,26500,25000,24000,23000,22000,21500,21000], ltr: 2400 },
+  2: { name: "Case 2 — Management-consistent",
+       rate: [6000,6500,6400,6300,6200,6100,5900,5700,5400,5200],
+       spot: [12000,12000,11800,11500,11200,11000,10500,10000,9500,9000],
+       capexGW: [48000,50000,52000,54000,56000,58000,60000,62000,64000,66000], ltr: 5200 },
+  3: { name: "Case 3 — High-capex stress",
+       rate: [6000,6500,6400,6300,6200,6100,5900,5700,5400,5200],
+       spot: [12000,12000,11800,11500,11200,11000,10500,10000,9500,9000],
+       capexGW: [55000,60000,65000,70000,75000,80000,84000,87000,89000,90000], ltr: 5200 }
+};
+
+function computeModel(inputs) {
+  const { gw, rateTable, spotTable, capexGWTable, mode, longTermRate, convergenceYears } = inputs;
+  const f = FIXED;
+  const out = { quarters: Q, space:{}, connectivity:{}, ai:{}, total:{}, bs:{} };
+
+  const spRev=[], spCogs=[], spRnd=[], spSga=[], spOpInc=[], spCapex=[];
+  let prevSp = f.space.revQ226A;
+  for (let t=0;t<N;t++){
+    const rev = prevSp*(1+f.space.revGrowth[t]);
+    spRev.push(rev);
+    spCogs.push(rev*f.space.cogsPct[t]);
+    spRnd.push(rev*f.space.rndPct[t]);
+    spSga.push(rev*f.space.sgaPct[t]);
+    spOpInc.push(rev - spCogs[t]-spRnd[t]-spSga[t]);
+    spCapex.push(rev*f.space.capexPct[t]);
+    prevSp = rev;
+  }
+  out.space = {revenue:spRev, cogs:spCogs, rnd:spRnd, sga:spSga, opInc:spOpInc, capex:spCapex};
+
+  const coSubs=[], coConsumerRev=[], coEntGovRev=[], coRev=[], coCogs=[], coRnd=[], coSga=[], coOpInc=[], coCapex=[];
+  let prevSubs = f.connectivity.subsQ226A, prevEntGov = f.connectivity.entGovQ226A;
+  for (let t=0;t<N;t++){
+    const subs = prevSubs + f.connectivity.subAdds[t];
+    coSubs.push(subs);
+    const consumer = subs*f.connectivity.arpu[t]*3;
+    coConsumerRev.push(consumer);
+    const entgov = prevEntGov*(1+f.connectivity.entGovGrowth[t]);
+    coEntGovRev.push(entgov);
+    const rev = consumer+entgov;
+    coRev.push(rev);
+    coCogs.push(rev*f.connectivity.cogsPct[t]);
+    coRnd.push(rev*f.connectivity.rndPct[t]);
+    coSga.push(rev*f.connectivity.sgaPct[t]);
+    coOpInc.push(rev - coCogs[t]-coRnd[t]-coSga[t]);
+    coCapex.push(rev*f.connectivity.capexPct[t]);
+    prevSubs = subs; prevEntGov = entgov;
+  }
+  out.connectivity = {revenue:coRev, cogs:coCogs, rnd:coRnd, sga:coSga, opInc:coOpInc, capex:coCapex, subs:coSubs};
+
+  const monetizable = f.ai.monetizable;
+  const nameplate = gw;
+  const revGenGW = nameplate.map((g,t)=>g*monetizable[t]);
+  const infraRev = new Array(N).fill(0);
+  const effRate = new Array(N).fill(0);
+  const incrementalGW = new Array(N).fill(0);
+
+  let prevNameplate = f.ai.nameplateQ226A;
+  for (let t=0;t<N;t++){
+    incrementalGW[t] = Math.max(0, nameplate[t]-prevNameplate);
+    prevNameplate = nameplate[t];
+  }
+
+  if (mode === 'longterm') {
+    for (let t=0;t<N;t++){
+      infraRev[t] = revGenGW[t]*rateTable[t];
+      effRate[t] = rateTable[t];
+    }
+  } else {
+    const convQ = Math.max(1, convergenceYears*4);
+    const vintages = [{origin:-1, size:f.ai.nameplateQ226A, price0:longTermRate}];
+    for (let t=0;t<N;t++){
+      if (incrementalGW[t] > 1e-9) vintages.push({origin:t, size:incrementalGW[t], price0:spotTable[t]});
+      let weightedRevSum = 0, sizeSum = 0;
+      for (const v of vintages){
+        if (v.origin > t) continue;
+        const age = t - v.origin;
+        const frac = Math.min(1, age/convQ);
+        const price = v.price0 + (longTermRate - v.price0)*frac;
+        weightedRevSum += v.size*price;
+        sizeSum += v.size;
+      }
+      const blendedRate = sizeSum>0 ? weightedRevSum/sizeSum : longTermRate;
+      effRate[t] = blendedRate;
+      infraRev[t] = revGenGW[t]*blendedRate;
+    }
+  }
+
+  const aiAdvRev = [];
+  let prevAd = f.ai.adQ226A;
+  for (let t=0;t<N;t++){ const v = prevAd*(1+f.ai.adGrowth[t]); aiAdvRev.push(v); prevAd = v; }
+
+  const aiRev=[], aiCogs=[], aiRnd=[], aiSga=[], aiOpInc=[], aiCapex=[];
+  for (let t=0;t<N;t++){
+    const rev = infraRev[t] + f.ai.grok[t] + f.ai.cursor[t] + aiAdvRev[t];
+    aiRev.push(rev);
+    aiCogs.push(rev*f.ai.cogsPct[t]);
+    aiRnd.push(rev*f.ai.rndPct[t]);
+    aiSga.push(rev*f.ai.sgaPct[t]);
+    aiOpInc.push(rev - aiCogs[t]-aiRnd[t]-aiSga[t]);
+    aiCapex.push(incrementalGW[t]*capexGWTable[t]);
+  }
+  out.ai = {revenue:aiRev, infraRev, grok:f.ai.grok, cursor:f.ai.cursor, advertising:aiAdvRev,
+            cogs:aiCogs, rnd:aiRnd, sga:aiSga, opInc:aiOpInc, capex:aiCapex,
+            nameplateGW:nameplate, revGenGW, effRate, incrementalGW};
+
+  const totRev=[], totCogs=[], totRnd=[], totSga=[], totOpIncBeforeDep=[], totCapex=[];
+  for (let t=0;t<N;t++){
+    totRev.push(spRev[t]+coRev[t]+aiRev[t]);
+    totCogs.push(spCogs[t]+coCogs[t]+aiCogs[t]);
+    totRnd.push(spRnd[t]+coRnd[t]+aiRnd[t]);
+    totSga.push(spSga[t]+coSga[t]+aiSga[t]);
+    totOpIncBeforeDep.push(totRev[t]-totCogs[t]-totRnd[t]-totSga[t]);
+    totCapex.push(spCapex[t]+coCapex[t]+aiCapex[t]);
+  }
+
+  const rate = f.financing.itShare/f.financing.itLife + (1-f.financing.itShare)/f.financing.facilityLife;
+  const depFlow = totCapex.map(c=>c*rate);
+  const inServiceCum = new Array(N).fill(0);
+  for (let t=0;t<N;t++){
+    const prevCum = t>0?inServiceCum[t-1]:0;
+    const flowLag2 = t-2>=0 ? depFlow[t-2] : 0;
+    inServiceCum[t] = prevCum + flowLag2;
+  }
+  const totOpInc = totOpIncBeforeDep.map((v,t)=>v-inServiceCum[t]);
+
+  const openingCash=[], intInc=[], openingDebt=[], intExp=[], cfoProxy=[], cashBeforeFin=[], newDebt=[], closingCash=[], closingDebt=[], totalDebtOut=[];
+  let prevCash = f.financing.openingCash, prevDebt = 0;
+  for (let t=0;t<N;t++){
+    openingCash.push(prevCash);
+    intInc.push(prevCash*f.financing.cashYield/4);
+    openingDebt.push(prevDebt);
+    intExp.push(-(f.financing.existingDebt*f.financing.existingRate/4 + prevDebt*f.financing.newRate/4));
+    const cfo = totOpIncBeforeDep[t] + f.financing.legacyAddback - f.financing.tax[t] + intInc[t] + intExp[t];
+    cfoProxy.push(cfo);
+    const cbf = prevCash + cfo - totCapex[t];
+    cashBeforeFin.push(cbf);
+    const nd = Math.max(0, f.financing.minCash - cbf);
+    newDebt.push(nd);
+    const cc = cbf+nd;
+    closingCash.push(cc);
+    const cd = prevDebt+nd;
+    closingDebt.push(cd);
+    totalDebtOut.push(f.financing.existingDebt+cd);
+    prevCash = cc; prevDebt = cd;
+  }
+
+  const netIncome=[], pretax=[];
+  for (let t=0;t<N;t++){
+    const pt = totOpInc[t] + intExp[t] + intInc[t] + f.financing.otherIncome[t];
+    pretax.push(pt);
+    netIncome.push(pt - f.financing.tax[t]);
+  }
+
+  out.total = {revenue:totRev, cogs:totCogs, rnd:totRnd, sga:totSga, opIncBeforeDep:totOpIncBeforeDep,
+    dep:inServiceCum, opInc:totOpInc, intExp, intInc, otherIncome:f.financing.otherIncome, pretax, tax:f.financing.tax,
+    netIncome, capex:totCapex, cfoProxy, newDebt, closingCash, closingDebt, totalDebtOut, openingCash, openingDebt};
+
+  const otherAssets = f.balanceQ226A.totalAssets - f.balanceQ226A.cash - f.balanceQ226A.securities - f.balanceQ226A.ppe;
+  const otherLiab = f.balanceQ226A.totalLiab - f.financing.existingDebt;
+  const ppe=[], totalAssets=[], totalLiab=[], equity=[], cumNI=[], otherEquityMovement=[];
+  let prevPPE = f.balanceQ226A.ppe, prevEquity = f.balanceQ226A.equity, cum=0;
+  for (let t=0;t<N;t++){
+    const p = prevPPE + totCapex[t] - inServiceCum[t];
+    ppe.push(p);
+    const ta = closingCash[t] + p + otherAssets;
+    totalAssets.push(ta);
+    const tl = totalDebtOut[t] + otherLiab;
+    totalLiab.push(tl);
+    const eq = ta - tl;
+    equity.push(eq);
+    cum += netIncome[t];
+    cumNI.push(cum);
+    otherEquityMovement.push(eq - prevEquity - netIncome[t]);
+    prevPPE = p; prevEquity = eq;
+  }
+  out.bs = {ppe, otherAssets, totalAssets, otherLiab, totalDebtOut, totalLiab, equity, cumNI, otherEquityMovement,
+            cash: closingCash};
+
+  return out;
+}
+
+/* ============================= STATE ============================= */
+const state = {
+  gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+  rateTable: CASES[1].rate.slice(),
+  spotTable: CASES[1].spot.slice(),
+  capexGWTable: CASES[1].capexGW.slice(),
+  mode: 'longterm',
+  longTermRate: CASES[1].ltr,
+  convergenceYears: 4,
+  activeCase: 1
+};
+
+function currentInputs(){
+  return {
+    gw: state.gw,
+    rateTable: state.mode==='longterm' ? state.rateTable : state.rateTable,
+    spotTable: state.spotTable,
+    capexGWTable: state.capexGWTable,
+    mode: state.mode,
+    longTermRate: state.longTermRate,
+    convergenceYears: state.convergenceYears
+  };
+}
+
+function round4(x){ return Math.round(x*10000)/10000; }
+
+/* ============================= FORMATTERS ============================= */
+function fmt0(x){ if(x===undefined||x===null||isNaN(x)) return '–'; if(Math.abs(x)<0.5) return '–'; const v=Math.round(x); const s=Math.abs(v).toLocaleString('en-US'); return v<0? '('+s+')': s; }
+function fmtPct(x, d){ if(x===undefined||isNaN(x)) return '–'; return (x*100).toFixed(d===undefined?1:d)+'%'; }
+function fmtAutoUSD(x){
+  const abs=Math.abs(x);
+  if(abs>=1000) return (x<0?'-':'')+'$'+(abs/1000).toFixed(abs>=10000?0:1)+'B';
+  return (x<0?'-':'')+'$'+Math.round(abs).toLocaleString('en-US')+'M';
+}
+function fmtGW(x){ return x.toFixed(1)+' GW'; }
+function fmtRateB(x){ return '$'+((x*4)/1000).toFixed(1)+'B/GW/yr'; }
+
+/* ============================= INPUT TABLES ============================= */
+function buildQTable(container, arr, opts){
+  container.innerHTML='';
+  const scale = opts.scale||1;
+  Q.forEach((q,i)=>{
+    const cell = document.createElement('div'); cell.className='qcell';
+    const lab = document.createElement('label'); lab.textContent=q.replace("'","’");
+    const inp = document.createElement('input'); inp.type='number'; inp.step=opts.step||'1';
+    inp.value = round4(arr[i]/scale);
+    inp.addEventListener('input', ()=>{
+      const v = parseFloat(inp.value);
+      arr[i] = isNaN(v)?0:v*scale;
+      if(opts.clearsCase){ state.activeCase = null; updatePresetUI(); }
+      renderAll();
+    });
+    cell.appendChild(lab); cell.appendChild(inp); container.appendChild(cell);
+  });
+}
+
+/* ============================= RENDER: SIDEBAR ============================= */
+const tblGW = document.getElementById('tbl-gw');
+const tblRate = document.getElementById('tbl-rate');
+const tblCapex = document.getElementById('tbl-capex');
+const modeHint = document.getElementById('mode-hint');
+const spotExtra = document.getElementById('spot-extra');
+const ltrInput = document.getElementById('ltr-input');
+const ltrVal = document.getElementById('ltr-val');
+const convInput = document.getElementById('conv-input');
+const convVal = document.getElementById('conv-val');
+
+function activeRateArray(){ return state.mode==='longterm' ? state.rateTable : state.spotTable; }
+
+function buildSidebar(){
+  buildQTable(tblGW, state.gw, {step:'0.1'});
+  buildQTable(tblRate, activeRateArray(), {step:'200', clearsCase:true, scale:0.25});
+  buildQTable(tblCapex, state.capexGWTable, {step:'0.5', clearsCase:true, scale:1000});
+  ltrInput.value = round4(state.longTermRate*4);
+  ltrVal.textContent = '$'+Math.round(state.longTermRate*4).toLocaleString()+'mm';
+  convInput.value = state.convergenceYears;
+  convVal.textContent = state.convergenceYears+' yrs';
+  updateModeUI();
+  updatePresetUI();
+}
+
+function updatePresetUI(){
+  document.querySelectorAll('.preset-row button[data-case]').forEach(btn=>{
+    btn.classList.toggle('primary', Number(btn.dataset.case)===state.activeCase);
+  });
+}
+
+function updateModeUI(){
+  document.querySelectorAll('#mode-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.mode===state.mode));
+  if(state.mode==='longterm'){
+    modeHint.textContent = "Annual rate, recognized 1/4 per quarter, applied uniformly to the whole revenue-generating GW base — a stable contracted price.";
+    spotExtra.style.display='none';
+  } else {
+    modeHint.textContent = "Annual rate new GW is sold at when it lands. Each vintage glides toward the long-term rate below over your convergence window.";
+    spotExtra.style.display='flex';
+  }
+  buildQTable(tblRate, activeRateArray(), {step:'200', scale:0.25});
+}
+
+document.getElementById('mode-toggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-mode]');
+  if(!btn) return;
+  state.mode = btn.dataset.mode;
+  updateModeUI();
+  renderAll();
+});
+
+ltrInput.addEventListener('input', ()=>{
+  const v = parseFloat(ltrInput.value);
+  state.longTermRate = isNaN(v)?0:v/4;
+  ltrVal.textContent = '$'+Math.round(isNaN(v)?0:v).toLocaleString()+'mm';
+  state.activeCase = null; updatePresetUI();
+  renderAll();
+});
+convInput.addEventListener('input', ()=>{
+  state.convergenceYears = parseFloat(convInput.value);
+  convVal.textContent = state.convergenceYears+' yrs';
+  renderAll();
+});
+
+document.querySelectorAll('.preset-row button[data-case]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const c = CASES[btn.dataset.case];
+    state.rateTable = c.rate.slice();
+    state.spotTable = c.spot.slice();
+    state.capexGWTable = c.capexGW.slice();
+    state.longTermRate = c.ltr;
+    state.activeCase = Number(btn.dataset.case);
+    buildSidebar();
+    renderAll();
+  });
+});
+
+document.getElementById('reset-btn').addEventListener('click', ()=>{
+  state.gw = [1.8,2.2,3,4.5,7,10,11.5,13,14,15];
+  state.rateTable = CASES[1].rate.slice();
+  state.spotTable = CASES[1].spot.slice();
+  state.capexGWTable = CASES[1].capexGW.slice();
+  state.mode = 'longterm';
+  state.longTermRate = CASES[1].ltr;
+  state.convergenceYears = 4;
+  state.activeCase = 1;
+  buildSidebar();
+  renderAll();
+});
+
+/* ============================= TOOLTIP ============================= */
+const tooltip = document.getElementById('tooltip');
+function showTooltip(html, x, y){
+  tooltip.innerHTML = html;
+  tooltip.classList.add('show');
+  const pad=14; const tw=tooltip.offsetWidth, th=tooltip.offsetHeight;
+  let left = x+pad, top = y+pad;
+  if(left+tw>window.innerWidth-8) left = x-tw-pad;
+  if(top+th>window.innerHeight-8) top = y-th-pad;
+  tooltip.style.left = left+'px'; tooltip.style.top = top+'px';
+}
+function hideTooltip(){ tooltip.classList.remove('show'); }
+
+/* ============================= CHARTS ============================= */
+const NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs){
+  const el = document.createElementNS(NS, tag);
+  for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function colorVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function stackedBarChart(container, labels, series, opts){
+  container.innerHTML='';
+  const W = opts.width||520, H = opts.height||220;
+  const padL=44, padR=8, padT=10, padB=22;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  const n = labels.length;
+  const totals = labels.map((_,i)=> series.reduce((s,se)=>s+se.values[i],0));
+  const maxV = Math.max(1, ...totals);
+  const niceMax = niceCeil(maxV);
+  const svg = svgEl('svg',{class:'chart', viewBox:'0 0 '+W+' '+H});
+  const gridN=4;
+  for(let g=0; g<=gridN; g++){
+    const yv = niceMax*g/gridN;
+    const y = padT + plotH - (yv/niceMax)*plotH;
+    svg.appendChild(svgEl('line',{class:'gridline', x1:padL, x2:W-padR, y1:y, y2:y}));
+    const t = svgEl('text',{class:'axis-label', x:padL-6, y:y+3, 'text-anchor':'end'});
+    t.textContent = fmtAutoUSD(yv); svg.appendChild(t);
+  }
+  const bw = plotW/n*0.62;
+  const step = plotW/n;
+  for(let i=0;i<n;i++){
+    const x = padL + step*i + (step-bw)/2;
+    let yCursor = padT+plotH;
+    const histFlag = opts.histCount && i<opts.histCount;
+    series.forEach((se)=>{
+      const v = se.values[i];
+      const h = (v/niceMax)*plotH;
+      const y = yCursor-h;
+      const rect = svgEl('rect',{x:x, y:y, width:bw, height:Math.max(0,h-1), rx:2,
+        fill: histFlag? colorVar('--text-faint') : se.color, opacity: histFlag? 0.45:1});
+      svg.appendChild(rect);
+      yCursor = y;
+    });
+    const hit = svgEl('rect',{class:'hit', x:padL+step*i, y:padT, width:step, height:plotH});
+    hit.addEventListener('mousemove', (ev)=>{
+      let rows = series.map(se=>'<div class="tt-row"><span class="k"><span class="swatch" style="background:'+(histFlag?colorVar('--text-faint'):se.color)+'"></span>'+se.label+'</span><span>'+fmt0(se.values[i])+'</span></div>').join('');
+      showTooltip('<div class="tt-title">'+labels[i]+(histFlag?' · actual':'')+'</div>'+rows+'<div class="tt-row tt-total"><span>Total</span><span>'+fmt0(totals[i])+'</span></div>', ev.clientX, ev.clientY);
+    });
+    hit.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(hit);
+    if(i%1===0){
+      const lt = svgEl('text',{class:'axis-label', x:x+bw/2, y:H-6, 'text-anchor':'middle'});
+      lt.textContent = labels[i].replace("Q","").replace("'","’"); svg.appendChild(lt);
+    }
+  }
+  container.appendChild(svg);
+}
+
+function lineChart(container, labels, values, opts){
+  container.innerHTML='';
+  const W = opts.width||520, H = opts.height||220;
+  const padL=52, padR=10, padT=14, padB=22;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  const n = labels.length;
+  const minV = Math.min(0, ...values), maxV = Math.max(0, ...values);
+  const niceMax = niceCeil(Math.max(Math.abs(minV), Math.abs(maxV)));
+  const scaleY = v => padT + plotH - ((v+niceMax)/(niceMax*2))*plotH;
+  const svg = svgEl('svg',{class:'chart', viewBox:'0 0 '+W+' '+H});
+  const gridN=4;
+  for(let g=-gridN/2; g<=gridN/2; g++){
+    const yv = niceMax*g/(gridN/2);
+    const y = scaleY(yv);
+    svg.appendChild(svgEl('line',{class: g===0?'zeroline':'gridline', x1:padL, x2:W-padR, y1:y, y2:y}));
+    const t = svgEl('text',{class:'axis-label', x:padL-6, y:y+3, 'text-anchor':'end'});
+    t.textContent = fmtAutoUSD(yv); svg.appendChild(t);
+  }
+  const step = plotW/(n-1||1);
+  const pts = values.map((v,i)=>[padL+step*i, scaleY(v)]);
+  let d = 'M'+pts.map(p=>p[0]+' '+p[1]).join(' L');
+  svg.appendChild(svgEl('path',{d:d, fill:'none', stroke:opts.color||colorVar('--accent'), 'stroke-width':2}));
+  pts.forEach((p,i)=>{
+    const histFlag = opts.histCount && i<opts.histCount;
+    const c = values[i]<0 ? colorVar('--bad') : (opts.color||colorVar('--accent'));
+    svg.appendChild(svgEl('circle',{cx:p[0], cy:p[1], r: i===n-1?4:2.6, fill: histFlag?colorVar('--text-faint'):c}));
+    const hit = svgEl('rect',{class:'hit', x:p[0]-step/2, y:padT, width:step, height:plotH});
+    hit.addEventListener('mousemove', (ev)=>{
+      showTooltip('<div class="tt-title">'+labels[i]+(histFlag?' · actual':'')+'</div><div class="tt-row"><span>'+(opts.label||'Value')+'</span><span>'+fmt0(values[i])+'</span></div>', ev.clientX, ev.clientY);
+    });
+    hit.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(hit);
+    const lt = svgEl('text',{class:'axis-label', x:p[0], y:H-6, 'text-anchor':'middle'});
+    lt.textContent = labels[i].replace("Q","").replace("'","’"); svg.appendChild(lt);
+  });
+  container.appendChild(svg);
+}
+
+function barChartSimple(container, labels, values, opts){
+  container.innerHTML='';
+  const W = opts.width||360, H = opts.height||200;
+  const padL=40, padR=8, padT=10, padB=22;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const n=labels.length;
+  const maxV = niceCeil(Math.max(1,...values));
+  const svg = svgEl('svg',{class:'chart', viewBox:'0 0 '+W+' '+H});
+  for(let g=0; g<=4; g++){
+    const yv=maxV*g/4; const y=padT+plotH-(yv/maxV)*plotH;
+    svg.appendChild(svgEl('line',{class:'gridline', x1:padL, x2:W-padR, y1:y, y2:y}));
+    const t=svgEl('text',{class:'axis-label', x:padL-5, y:y+3, 'text-anchor':'end'}); t.textContent=opts.fmt?opts.fmt(yv):fmt0(yv); svg.appendChild(t);
+  }
+  const step=plotW/n, bw=step*0.55;
+  values.forEach((v,i)=>{
+    const x=padL+step*i+(step-bw)/2;
+    const h=(v/maxV)*plotH; const y=padT+plotH-h;
+    svg.appendChild(svgEl('rect',{x:x,y:y,width:bw,height:Math.max(0,h),rx:2,fill:opts.color||colorVar('--ai')}));
+    const hit = svgEl('rect',{class:'hit', x:padL+step*i, y:padT, width:step, height:plotH});
+    hit.addEventListener('mousemove',(ev)=>{
+      showTooltip('<div class="tt-title">'+labels[i]+'</div><div class="tt-row"><span>'+(opts.label||'Value')+'</span><span>'+(opts.fmt?opts.fmt(v):fmt0(v))+'</span></div>', ev.clientX, ev.clientY);
+    });
+    hit.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(hit);
+    if(i%2===0 || n<=6){
+      const lt=svgEl('text',{class:'axis-label', x:x+bw/2, y:H-6, 'text-anchor':'middle'}); lt.textContent=labels[i].replace("Q","").replace("'","’"); svg.appendChild(lt);
+    }
+  });
+  container.appendChild(svg);
+}
+
+function niceCeil(v){
+  if(v<=0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const norm = v/mag;
+  let n;
+  if(norm<=1) n=1; else if(norm<=2) n=2; else if(norm<=5) n=5; else n=10;
+  return n*mag;
+}
+
+/* ============================= KPI CARDS ============================= */
+function pill(text, cls){ return '<span class="pill '+cls+'">'+text+'</span>'; }
+
+function renderKPIs(m){
+  const grid = document.getElementById('kpi-grid');
+  const lastIdx = N-1;
+  const totalRevEnd = m.total.revenue[lastIdx];
+  const niEnd = m.total.netIncome[lastIdx];
+  const aiRevEnd = m.ai.revenue[lastIdx];
+  const aiShare = aiRevEnd/totalRevEnd;
+  const gwEnd = m.ai.revGenGW[lastIdx];
+  const cashEnd = m.total.closingCash[lastIdx];
+  const debtEnd = m.total.totalDebtOut[lastIdx];
+  const arrDec26 = m.total.revenue[1]*0.38*12;
+  const arrGap = arrDec26-100000;
+  const paybackQ426 = state.capexGWTable[1] / ((state.mode==='longterm'?state.rateTable[1]:state.spotTable[1])*4);
+
+  const cards = [
+    { label:"Total revenue · Q4'28E", value: fmtAutoUSD(totalRevEnd), sub: (totalRevEnd/m.total.revenue[0]).toFixed(1)+'x vs Q3’26E' },
+    { label:"Net income (loss) · Q4'28E", value: fmtAutoUSD(niEnd), sub: pill(niEnd>=0?'Profitable':'Loss-making', niEnd>=0?'good':'bad') },
+    { label:"AI revenue · Q4'28E", value: fmtAutoUSD(aiRevEnd), sub: fmtPct(aiShare,0)+' of total revenue' },
+    { label:"AI revenue-generating GW · Q4'28E", value: fmtGW(gwEnd), sub: fmtGW(m.ai.nameplateGW[lastIdx])+' nameplate' },
+    { label:"Cash &amp; securities · Q4'28E", value: fmtAutoUSD(cashEnd), sub: cashEnd<=15001? pill('At minimum buffer','warn') : pill('Above buffer','good') },
+    { label:"Total debt outstanding · Q4'28E", value: fmtAutoUSD(debtEnd), sub: fmtAutoUSD(debtEnd-39364)+' newly raised' },
+    { label:"ARR run-rate · Dec 2026E", value: fmtAutoUSD(arrDec26), sub: arrGap>=0? pill('Above $100B guide','good') : pill(fmtAutoUSD(Math.abs(arrGap))+' short of $100B','warn') },
+    { label:"New-capacity payback · Q4'26E", value: paybackQ426.toFixed(2)+' yrs', sub: paybackQ426<=1? pill('Meets <1yr guidance','good') : pill('Above 1yr guidance','warn') }
+  ];
+  grid.innerHTML = cards.map(c=>
+    '<div class="kpi"><div class="kpi-label">'+c.label+'</div><div class="kpi-value num">'+c.value+'</div><div class="kpi-sub">'+c.sub+'</div></div>'
+  ).join('');
+}
+
+/* ============================= TABLES ============================= */
+function rowHTML(label, values, opts){
+  opts = opts||{};
+  const cells = values.map(v=>{
+    const cls = ['num']; if(v<0) cls.push('neg');
+    return '<td class="'+cls.join(' ')+'">'+(opts.pct? fmtPct(v,1) : fmt0(v))+'</td>';
+  }).join('');
+  return '<tr class="'+(opts.rowClass||'')+'"><td class="rowlabel">'+label+'</td>'+cells+'</tr>';
+}
+function sectionRow(label, span){
+  return '<tr class="section"><td class="rowlabel">'+label+'</td><td colspan="'+span+'"></td></tr>';
+}
+
+function renderPLTable(m){
+  const el = document.getElementById('table-pl');
+  const allQ = HQ.concat(Q);
+  const H = FIXED.historical;
+
+  const cat = (histArr, fArr)=> histArr.concat(fArr);
+  const zeros = new Array(3).fill(0);
+
+  let head = '<thead><tr><th class="rowlabel">$mm</th>'+allQ.map((q,i)=>'<th class="num'+(i===3?' divider-col':'')+'">'+q+'</th>').join('')+'</tr></thead>';
+
+  let body = '<tbody>';
+  body += sectionRow('Revenue by segment', allQ.length);
+  body += rowHTML('Space', cat(H.space, m.space.revenue));
+  body += rowHTML('Connectivity', cat(H.connectivity, m.connectivity.revenue));
+  body += rowHTML('AI', cat(H.ai, m.ai.revenue));
+  const totRevHist = H.space.map((v,i)=>v+H.connectivity[i]+H.ai[i]);
+  body += rowHTML('Total revenue', cat(totRevHist, m.total.revenue), {rowClass:'total'});
+
+  body += sectionRow('Costs &amp; expenses', allQ.length);
+  body += rowHTML('Cost of revenue', cat(zeros, m.total.cogs));
+  body += rowHTML('Research &amp; development', cat(zeros, m.total.rnd));
+  body += rowHTML('Selling, general &amp; admin', cat(zeros, m.total.sga));
+  body += rowHTML('Depreciation, new capex', cat(zeros, m.total.dep));
+
+  const opIncHist = [-970,-1943,-143];
+  body += rowHTML('Income (loss) from operations', cat(opIncHist, m.total.opInc), {rowClass:'total'});
+  body += rowHTML('  Operating margin %', cat(opIncHist.map((v,i)=>v/totRevHist[i]), m.total.opInc.map((v,i)=>v/m.total.revenue[i])), {pct:true});
+
+  body += sectionRow('Below the line', allQ.length);
+  const intExpHist=[-411,-664,-629], intIncHist=[98,213,340], otherHist=[413,-1876,-86], taxHist=[138,6,23];
+  body += rowHTML('Interest expense', cat(intExpHist, m.total.intExp));
+  body += rowHTML('Interest income', cat(intIncHist, m.total.intInc));
+  body += rowHTML('Other income (expense), net', cat(otherHist, m.total.otherIncome));
+  body += rowHTML('Provision for income taxes', cat(taxHist, m.total.tax));
+  body += rowHTML('Net income (loss)', cat(H.netIncome, m.total.netIncome), {rowClass:'total'});
+  body += rowHTML('  Net margin %', cat(H.netIncome.map((v,i)=>v/totRevHist[i]), m.total.netIncome.map((v,i)=>v/m.total.revenue[i])), {pct:true});
+
+  body += sectionRow('Memo', allQ.length);
+  body += rowHTML('AI infrastructure revenue', cat([null,null,2194], m.ai.infraRev), {rowClass:'memo'});
+  body += rowHTML('AI nameplate compute (GW)', cat(H.aiNameplateGW, m.ai.nameplateGW), {rowClass:'memo'});
+  body += rowHTML('AI realized $/GW/yr (blended)', cat([null,null,null], m.ai.effRate.map(v=>v*4)), {rowClass:'memo'});
+  body += rowHTML('Total capex', cat([2825,10107,18369], m.total.capex), {rowClass:'memo'});
+  body += rowHTML('  of which AI capex', cat([749,7723,15828], m.ai.capex), {rowClass:'memo'});
+  body += rowHTML('ARR (exit-month revenue x 12)', [null,null,null, m.total.revenue[0]*0.38*12].concat(m.total.revenue.slice(1).map(v=>v*0.38*12)), {rowClass:'memo'});
+  body += '</tbody>';
+
+  el.innerHTML = head+body;
+}
+
+function renderBSTable(m){
+  const el = document.getElementById('table-bs');
+  const cols = ["Jun 30, 2026A"].concat(Q);
+  const B = FIXED.balanceQ226A;
+  let head = '<thead><tr><th class="rowlabel">$mm</th>'+cols.map((c,i)=>'<th class="num'+(i===1?' divider-col':'')+'">'+c+'</th>').join('')+'</tr></thead>';
+
+  const cat = (v0, arr)=> [v0].concat(arr);
+
+  let body='<tbody>';
+  body += sectionRow('Assets', cols.length);
+  body += rowHTML('Cash &amp; securities', cat(B.cash+B.securities, m.bs.cash));
+  body += rowHTML('Property, plant &amp; equipment, net', cat(B.ppe, m.bs.ppe));
+  body += rowHTML('Other assets (held flat)', cat(m.bs.otherAssets, m.bs.otherAssets===undefined? [] : new Array(N).fill(m.bs.otherAssets)));
+  body += rowHTML('Total assets', cat(B.totalAssets, m.bs.totalAssets), {rowClass:'total'});
+
+  body += sectionRow('Liabilities', cols.length);
+  body += rowHTML('Total debt (existing + new)', cat(39364, m.bs.totalDebtOut));
+  body += rowHTML('Other liabilities (held flat)', cat(m.bs.otherLiab, new Array(N).fill(m.bs.otherLiab)));
+  body += rowHTML('Total liabilities', cat(B.totalLiab, m.bs.totalLiab), {rowClass:'total'});
+
+  body += sectionRow("Shareholders&rsquo; equity", cols.length);
+  body += rowHTML('Total shareholders&rsquo; equity', cat(B.equity, m.bs.equity), {rowClass:'total'});
+  body += rowHTML('Total liabilities &amp; equity', cat(B.totalLiab+B.equity, m.bs.totalLiab.map((v,i)=>v+m.bs.equity[i])), {rowClass:'total'});
+
+  body += sectionRow('Memo: equity bridge', cols.length);
+  body += rowHTML('Cumulative net income', cat(0, m.bs.cumNI), {rowClass:'memo'});
+  body += rowHTML('Other reconciling items (unmodeled WC/deferred rev/non-cash)', cat(0, m.bs.otherEquityMovement), {rowClass:'memo'});
+  body += '</tbody>';
+
+  el.innerHTML = head+body;
+}
+
+/* ============================= MAIN RENDER ============================= */
+function renderAll(){
+  const m = computeModel(currentInputs());
+
+  renderKPIs(m);
+
+  const revLabels = HQ.concat(Q);
+  stackedBarChart(document.getElementById('chart-revenue'), revLabels, [
+    {label:'Space', color:colorVar('--space'), values: FIXED.historical.space.concat(m.space.revenue)},
+    {label:'Connectivity', color:colorVar('--connectivity'), values: FIXED.historical.connectivity.concat(m.connectivity.revenue)},
+    {label:'AI', color:colorVar('--ai'), values: FIXED.historical.ai.concat(m.ai.revenue)}
+  ], {histCount:3, width:560, height:230});
+
+  lineChart(document.getElementById('chart-netincome'), revLabels, FIXED.historical.netIncome.concat(m.total.netIncome),
+    {histCount:3, width:420, height:230, label:'Net income'});
+
+  barChartSimple(document.getElementById('chart-gw'), Q, m.ai.nameplateGW, {color:colorVar('--ai'), label:'Nameplate GW', fmt:v=>v.toFixed(1)+' GW', width:340, height:190});
+  barChartSimple(document.getElementById('chart-rate'), Q, m.ai.effRate.map(v=>v*4), {color:colorVar('--accent'), label:'$mm/GW/yr', fmt:v=>'$'+Math.round(v).toLocaleString(), width:340, height:190});
+
+  renderPLTable(m);
+  renderBSTable(m);
+}
+
+buildSidebar();
+renderAll();
+window.addEventListener('resize', renderAll);
+
+})();
+</script>
+</body>
 </html>
