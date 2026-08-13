@@ -1343,13 +1343,13 @@ fetch('/api/assumptions')
   let widgetId = null;
   // Moderation is gated by the Cloudflare Access session on this page; there is
   // no token to hold client-side.
-  let adminEmail = null;
+  // Tracks only whether a moderation session exists. The signed-in identity is
+  // deliberately never read into the page, so it cannot end up on screen.
+  let adminSession = null;
   async function checkAdminSession(){
     try{
       const res = await fetch('/api/admin/whoami', { method:'POST' });
-      if(!res.ok) return null;
-      const d = await res.json();
-      return d.email || 'admin';
+      return res.ok ? true : null;
     } catch { return null; }
   }
 
@@ -1421,9 +1421,11 @@ fetch('/api/assumptions')
         '</div>'+
       '</form>';
 
-    const adminBarHtml = adminEmail
+    // Deliberately does not name the signed-in account: the banner is often on
+    // screen while sharing or screenshotting, and the identity adds nothing.
+    const adminBarHtml = adminSession
       ? '<div class="admin-bar" id="admin-bar"><span class="admin-badge">Moderating</span>'+
-          '<span class="admin-note">Signed in as '+escapeHtml(adminEmail)+' &middot; delete controls are shown on each comment.</span>'+
+          '<span class="admin-note">Delete controls are shown on each comment.</span>'+
         '</div>'
       : '';
 
@@ -1444,7 +1446,7 @@ fetch('/api/assumptions')
             '</div>'+
             '<div class="comment-body-col">'+
               '<div class="comment-meta"><span class="comment-author">'+escapeHtml(c.author)+'</span><span class="comment-time">'+timeAgo(c.created_at)+'</span>'+
-                (adminEmail ? '<button class="comment-delete" data-del="'+c.id+'" aria-label="Delete comment">Delete</button>' : '')+
+                (adminSession ? '<button class="comment-delete" data-del="'+c.id+'" aria-label="Delete comment">Delete</button>' : '')+
               '</div>'+
               '<div class="comment-text">'+escapeHtml(c.body)+'</div>'+
             '</div>'+
@@ -1499,7 +1501,7 @@ fetch('/api/assumptions')
           const res = await fetch('/api/admin/comments/'+id, { method:'DELETE' });
           if(!res.ok){
             const e = await res.json().catch(()=>({}));
-            if(res.status===401){ adminEmail=null; }
+            if(res.status===401){ adminSession=null; }
             throw new Error(e.error||'Delete failed');
           }
           await load();
@@ -1555,7 +1557,7 @@ fetch('/api/assumptions')
   }
 
   (async function init(){
-    adminEmail = await checkAdminSession();
+    adminSession = await checkAdminSession();
     load();
   })();
 
