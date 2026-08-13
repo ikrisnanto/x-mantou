@@ -331,3 +331,14 @@
     table.assump-table col.col-label{ width:130px; }
     table.assump-table td.assump-rowlabel, table.assump-table th.assump-rowlabel{ font-size:11.5px; }
   }
+
+  /* Discreet way back to the gated editor. Present on both pages; visitors who
+     follow it simply meet the Cloudflare login. */
+  .admin-link{ margin:2px 0 0; }
+  .admin-link a{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:12.5px; color:var(--text-faint); text-decoration:none;
+  }
+  .admin-link a:hover{ color:var(--text-dim); text-decoration:underline; }
+  .admin-link a:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:3px; }
+  .admin-link svg{ flex:none; opacity:.8; }
