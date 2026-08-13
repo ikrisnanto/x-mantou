@@ -700,7 +700,7 @@ fetch('/api/assumptions')
   let adminEmail = null;
   async function checkAdminSession(){
     try{
-      const res = await fetch(API+'/whoami', { method:'POST' });
+      const res = await fetch('/api/admin/whoami', { method:'POST' });
       if(!res.ok) return null;
       const d = await res.json();
       return d.email || 'admin';
@@ -850,7 +850,7 @@ fetch('/api/assumptions')
         if(!confirm('Delete this comment permanently?')) return;
         btn.disabled = true;
         try{
-          const res = await fetch(API+'/'+id, { method:'DELETE' });
+          const res = await fetch('/api/admin/comments/'+id, { method:'DELETE' });
           if(!res.ok){
             const e = await res.json().catch(()=>({}));
             if(res.status===401){ adminEmail=null; }
@@ -1120,7 +1120,7 @@ fetch('/api/assumptions')
     const status = document.getElementById('assump-status');
     status.textContent = 'Publishing…';
     try{
-      const res = await fetch('/api/assumptions', {
+      const res = await fetch('/api/admin/assumptions', {
         method:'POST', headers:{'content-type':'application/json'},
         body: JSON.stringify({ overrides: collectOverrides() })
       });
@@ -1138,7 +1138,7 @@ fetch('/api/assumptions')
     const status = document.getElementById('assump-status');
     status.textContent = 'Reverting…';
     try{
-      const res = await fetch('/api/assumptions', { method:'DELETE' });
+      const res = await fetch('/api/admin/assumptions', { method:'DELETE' });
       const data = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(data.error || 'revert failed');
       status.textContent = 'Reverted to defaults. Reloading…';

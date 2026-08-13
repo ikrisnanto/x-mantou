@@ -1,9 +1,10 @@
-import { json, sameOrigin } from '../../../shared/security.js';
-import { verifyAccess } from '../../../shared/access.js';
+import { json, sameOrigin } from '../../../../shared/security.js';
+import { verifyAccess } from '../../../../shared/access.js';
 
-/* Comment moderation. Behind Cloudflare Access — there is no token fallback,
- * so an unconfigured deployment denies rather than exposing a second, weaker
- * way in. */
+/* Comment moderation — ADMIN ONLY.
+ * Under /api/admin/ so one Cloudflare Access rule covers every admin route.
+ * The Access session is verified here too, so the edge rule is defence in
+ * depth rather than the only lock. */
 
 export async function onRequestDelete(context) {
   const { request, env, params } = context;
@@ -30,19 +31,4 @@ export async function onRequestDelete(context) {
   ]);
 
   return json({ deleted: commentId, by: auth.email });
-}
-
-/* Lets the admin page confirm the session is live before showing controls.
- * Routed as POST /api/comments/whoami. */
-export async function onRequestPost(context) {
-  const { request, env, params } = context;
-
-  if (!sameOrigin(request)) {
-    return json({ error: 'Cross-origin requests are not allowed' }, 403);
-  }
-  if (params.id !== 'whoami') return json({ error: 'Not found' }, 404);
-
-  const auth = await verifyAccess(request, env);
-  if (!auth.ok) return json({ error: auth.reason }, auth.status);
-  return json({ ok: true, email: auth.email });
 }
