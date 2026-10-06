@@ -368,11 +368,12 @@
     <div class="preset-box">
       <div class="group-eyebrow">Step 1 &middot; optional shortcut</div>
       <div class="panel-title" style="margin-top:2px;">Load a preset</div>
-      <div class="panel-hint">Not sure where to start? These fill in the pricing and cost boxes below with one of three ready-made views, from sceptical to management's own. Your build-out schedule is left alone.</div>
+      <div class="panel-hint">Not sure where to start? Each one fills in all three boxes below. They share the same build-out — the one management has guided to — and differ on what compute sells for and what it costs to build, from deep price erosion to management's own numbers.</div>
       <div class="preset-row">
         <button class="btn small" data-case="1">Case 1 · Conservative</button>
-        <button class="btn small" data-case="2">Case 2 · Mgmt-consistent</button>
+        <button class="btn small" data-case="2">Case 2 · Guidance</button>
         <button class="btn small" data-case="3">Case 3 · High-capex</button>
+        <button class="btn small" data-case="4">Case 4 · Contract run-rate</button>
       </div>
     </div>
 
@@ -418,7 +419,7 @@
 
       <div class="panel">
         <div class="panel-title">AI capex per incremental GW <span class="unit-badge">$bn</span></div>
-        <div class="panel-hint">What it costs to build each new gigawatt. Estimates for a 1 GW build run from about $20bn to $90bn. This is the single biggest driver of cash burn and borrowing.</div>
+        <div class="panel-hint">What it costs to build each new gigawatt. SpaceX says new compute pays its cost back in under a year, which implies something close to what a gigawatt earns in a year. Outside estimates run from about $16bn on the ground to $50bn in orbit. This is the single biggest driver of cash burn and borrowing.</div>
         <div class="qtable" id="tbl-capex"></div>
       </div>
     </div>
@@ -501,6 +502,7 @@
       <ul>
         <li><b>Long-term contract</b> assumes every gigawatt earns the same steady price, the way a signed multi-year deal would. Simple, and close to how the original model treats it.</li>
         <li><b>Spot market</b> is messier and more realistic. Each quarter's new capacity is sold at whatever the going rate is when it switches on, then drifts toward the long-run price over the period you choose. The rate shown is the average across everything running that quarter, weighted by size &mdash; so it can sit above or below the long-run price for a while when a lot of new, expensive capacity arrives at once.</li>
+        <li>Some reference points from SpaceX itself, as of the Q2 2026 results: 1.4 GW of compute installed, guided to more than 2 GW by the end of 2026 and around 10 GW by the end of 2027; new capacity expected to earn $30 to $50 per watt a year and pay for itself in under a year; about a tenth of all compute kept back to train Grok; and a target of a $100bn annualised revenue run-rate based on December 2026 revenue. Disclosed customer deals run to roughly $46bn a year, though management describes them as short commitments rather than locked multi-year backlog.</li>
         <li>Everything else &mdash; the Space and Connectivity businesses, cost ratios, depreciation, financing and tax &mdash; stays fixed at the base case on this page.</li>
         <li>New spending doesn't start depreciating right away &mdash; there's a six-month lag while it gets built and switched on. After that it's written off as 70% servers over five years and 30% buildings over fourteen.</li>
         <li>Cash and debt roll forward quarter by quarter. If cash would fall below a $15bn floor, the model borrows the difference at 6.5% a year. Existing debt of $39bn costs 5.5%, and cash on hand earns 4%.</li>
@@ -567,7 +569,7 @@ const REPORTED = [
     space: 746, connectivity: 2588, ai: 737,
     opInc: -970, netIncome: -1008,
     interestExpense: -411, interestIncome: 98, otherIncome: 413, tax: 138,
-    aiNameplateGW: 0.4, aiInfraRevenue: null,
+    aiNameplateGW: 0.4, aiInfraRevenue: 311,
     totalCapex: 2825, aiCapex: 749 },
 
   { label: "Q126",
@@ -603,8 +605,8 @@ const FIXED = {
     capexPct:  [1.00,0.90,0.75,0.65,0.55,0.50,0.45,0.40,0.38,0.35]
   },
   connectivity: {
-    subAdds:   [1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3,1.2,1.2],
-    arpu:      [65,65,64,64,63,63,62,62,61,61],
+    subAdds:   [1.7,1.7,1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3],
+    arpu:      [66,66,65,65,64,64,63,63,62,62],
     entGovGrowth: [0.20,0.18,0.15,0.13,0.12,0.11,0.10,0.10,0.09,0.09],
     cogsPct:   [0.47,0.46,0.45,0.44,0.43,0.42,0.41,0.41,0.40,0.40],
     rndPct:    [0.065,0.062,0.060,0.058,0.056,0.055,0.054,0.053,0.052,0.051],
@@ -622,26 +624,43 @@ const FIXED = {
   },
   financing: {
     itShare: 0.7, itLife: 20, facilityLife: 56,
-    legacyAddback: 3681, existingDebt: 39364, existingRate: 0.055, newRate: 0.065,
+    legacyAddback: 3681, existingDebt: 39364, existingRate: 0.055, newRate: 0.0585,
     cashYield: 0.04, minCash: 15000, openingCash: 100009,
+    exitMonthShare: 0.38, arrTarget: 100000,
     otherIncome: [-50,-50,-30,-20,-10,0,0,0,0,0],
     tax: [20,20,20,20,20,20,20,20,20,20]
   },
 };
 
+/* Presets. Each one fills all three sidebar boxes: gw (nameplate at quarter end),
+   rate / spot / ltr ($mm per GW per QUARTER — the sidebar shows them x4) and
+   capexGW ($mm per incremental GW). `basis` records why the numbers are what
+   they are; it is kept as data so npm run roll-quarter does not drop it. */
 const CASES = {
   1: { name: "Case 1 — Conservative",
+       basis: "Deep price erosion: $11bn per GW per year, a third of what management's $30-50 per watt implies, easing to $10bn. Capex $32bn falling to $21bn per GW.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
        rate: [2800,2900,2900,2850,2800,2750,2650,2550,2450,2400],
        spot: [3200,3300,3300,3200,3150,3100,3000,2900,2800,2700],
        capexGW: [32000,30000,28000,26500,25000,24000,23000,22000,21500,21000], ltr: 2400 },
-  2: { name: "Case 2 — Management-consistent",
-       rate: [6000,6500,6400,6300,6200,6100,5900,5700,5400,5200],
-       spot: [12000,12000,11800,11500,11200,11000,10500,10000,9500,9000],
-       capexGW: [48000,50000,52000,54000,56000,58000,60000,62000,64000,66000], ltr: 5200 },
+  2: { name: "Case 2 — Guidance-consistent",
+       basis: "$30bn per GW per year, the bottom of the $30-50 per watt a year management cites for Rubin-class capacity, easing to $22bn as supply grows. That lands the Dec-2026 ARR proxy just above management's $100bn target. Capex $45bn to $30bn per GW gives a ~1.5 year payback against the under-a-year management claims.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+       rate: [7500,7500,7250,7000,6750,6500,6250,6000,5750,5500],
+       spot: [9500,9500,9000,8500,8000,7500,7000,6500,6250,6000],
+       capexGW: [45000,44000,42000,40000,38000,36000,34000,32000,31000,30000], ltr: 5500 },
   3: { name: "Case 3 — High-capex stress",
-       rate: [6000,6500,6400,6300,6200,6100,5900,5700,5400,5200],
-       spot: [12000,12000,11800,11500,11200,11000,10500,10000,9500,9000],
-       capexGW: [55000,60000,65000,70000,75000,80000,84000,87000,89000,90000], ltr: 5200 }
+       basis: "Case 2 pricing, but capex stuck at $55bn per GW, around the ~$51/W estimated for compute in orbit, and never coming down.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+       rate: [7500,7500,7250,7000,6750,6500,6250,6000,5750,5500],
+       spot: [9500,9500,9000,8500,8000,7500,7000,6500,6250,6000],
+       capexGW: [55000,55000,55000,55000,55000,55000,55000,55000,55000,55000], ltr: 5500 },
+  4: { name: "Case 4 — Contract run-rate, then re-pricing",
+       basis: "Starts at the ~$23bn per GW per year the disclosed deals imply (~$46bn annualised across Google, Anthropic and two undisclosed customers, against just over 2 GW at end-2026), then more than halves by 2028 because the CFO describes these as roughly 90-day commitments with 90-day exits, not locked multi-year backlog. Capex as Case 1.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+       rate: [5750,5750,5500,5000,4500,4000,3500,3000,2750,2500],
+       spot: [5500,5250,4750,4250,3750,3250,3000,2750,2500,2500],
+       capexGW: [32000,30000,28000,26500,25000,24000,23000,22000,21500,21000], ltr: 2500 }
 };
 
 /* ============================================================================
@@ -827,7 +846,7 @@ function computeModel(inputs) {
 
 /* ============================= STATE ============================= */
 const state = {
-  gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+  gw: CASES[1].gw.slice(),
   rateTable: CASES[1].rate.slice(),
   spotTable: CASES[1].spot.slice(),
   capexGWTable: CASES[1].capexGW.slice(),
@@ -898,8 +917,7 @@ const convVal = document.getElementById('conv-val');
 function activeRateArray(){ return state.mode==='longterm' ? state.rateTable : state.spotTable; }
 
 function buildSidebar(){
-  buildQTable(tblGW, state.gw, {step:'0.1'});
-  buildQTable(tblRate, activeRateArray(), {step:'200', clearsCase:true, scale:0.25});
+  buildQTable(tblGW, state.gw, {step:'0.1', clearsCase:true});
   buildQTable(tblCapex, state.capexGWTable, {step:'0.5', clearsCase:true, scale:1000});
   ltrInput.value = round4(state.longTermRate*4);
   ltrVal.textContent = '$'+Math.round(state.longTermRate*4).toLocaleString()+'mm';
@@ -924,7 +942,7 @@ function updateModeUI(){
     modeHint.textContent = "What newly built capacity sells for when it comes online. Older capacity drifts toward the long-run price below.";
     spotExtra.style.display='flex';
   }
-  buildQTable(tblRate, activeRateArray(), {step:'200', scale:0.25});
+  buildQTable(tblRate, activeRateArray(), {step:'200', clearsCase:true, scale:0.25});
 }
 
 document.getElementById('mode-toggle').addEventListener('click', (e)=>{
@@ -951,6 +969,7 @@ convInput.addEventListener('input', ()=>{
 document.querySelectorAll('.preset-row button[data-case]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const c = CASES[btn.dataset.case];
+    state.gw = c.gw.slice();
     state.rateTable = c.rate.slice();
     state.spotTable = c.spot.slice();
     state.capexGWTable = c.capexGW.slice();
@@ -962,7 +981,7 @@ document.querySelectorAll('.preset-row button[data-case]').forEach(btn=>{
 });
 
 document.getElementById('reset-btn').addEventListener('click', ()=>{
-  state.gw = [1.8,2.2,3,4.5,7,10,11.5,13,14,15];
+  state.gw = CASES[1].gw.slice();
   state.rateTable = CASES[1].rate.slice();
   state.spotTable = CASES[1].spot.slice();
   state.capexGWTable = CASES[1].capexGW.slice();
@@ -1161,8 +1180,8 @@ function renderKPIs(m){
   const gwEnd = m.ai.revGenGW[lastIdx];
   const cashEnd = m.total.closingCash[lastIdx];
   const debtEnd = m.total.totalDebtOut[lastIdx];
-  const arrDec26 = m.total.revenue[1]*0.38*12;
-  const arrGap = arrDec26-100000;
+  const arrDec26 = m.total.revenue[1]*FIXED.financing.exitMonthShare*12;
+  const arrGap = arrDec26-FIXED.financing.arrTarget;
   const paybackQ426 = state.capexGWTable[1] / ((state.mode==='longterm'?state.rateTable[1]:state.spotTable[1])*4);
 
   const cards = [
@@ -1239,7 +1258,7 @@ function renderPLTable(m){
   body += rowHTML('AI realized $/GW/yr (blended)', cat(REPORTED.map(()=>null), m.ai.effRate.map(v=>v*4)), {rowClass:'memo', hist:HIST});
   body += rowHTML('Total capex', cat(hist('totalCapex'), m.total.capex), {rowClass:'memo', hist:HIST});
   body += rowHTML('  of which AI capex', cat(hist('aiCapex'), m.ai.capex), {rowClass:'memo', hist:HIST});
-  body += rowHTML('ARR (exit-month revenue x 12)', REPORTED.map(()=>null).concat(m.total.revenue.map(v=>v*0.38*12)), {rowClass:'memo', hist:HIST});
+  body += rowHTML('ARR (exit-month revenue x 12)', REPORTED.map(()=>null).concat(m.total.revenue.map(v=>v*FIXED.financing.exitMonthShare*12)), {rowClass:'memo', hist:HIST});
   body += '</tbody>';
 
   el.innerHTML = head+body;
@@ -1623,6 +1642,8 @@ fetch('/api/assumptions')
       { path:'financing.cashYield',     shape:ONE, kind:'pct', label:'Yield on cash', unit:'/yr' },
       { path:'financing.minCash',       shape:ONE, kind:'num', label:'Minimum cash buffer', unit:'$mm' },
       { path:'financing.openingCash',   shape:ONE, kind:'num', label:'Opening cash at jump-off', unit:'$mm' },
+      { path:'financing.exitMonthShare',shape:ONE, kind:'pct', label:'Exit month share of its quarter' },
+      { path:'financing.arrTarget',     shape:ONE, kind:'num', label:'ARR run-rate target', unit:'$mm' },
     ]},
   ];
 
@@ -1710,10 +1731,16 @@ fetch('/api/assumptions')
     });
   }
 
-  /* Regenerates assumptions.js from the live objects. Comments inside the data
-     blocks are not preserved — only the file header is. */
+  /* Regenerates assumptions.js from the live objects, in the same layout as
+     writeModel() in scripts/model.js — same header, the REPORTED block with the
+     jump-off detail on its last record, and N/HQ/JUMPOFF derived rather than
+     written out. A downloaded file is therefore a drop-in replacement for
+     src/dashboard/assumptions.js that npm run check accepts.
+     Comments inside the data blocks are not preserved — only the header is.
+     Keep this in step with model.js: the two write the same file. */
   function serialize(){
-    const arr = (a)=>'['+a.map(n=>+ (+n).toFixed(10)).join(',')+']';
+    const num = (n)=> Number.isInteger(n) ? String(n) : String(+(+n).toFixed(10));
+    const arr = (a)=>'['+a.map(num).join(',')+']';
     const obj = (o, indent)=>{
       const pad=' '.repeat(indent), padIn=' '.repeat(indent+2);
       const parts = Object.entries(o).map(([k,v])=>{
@@ -1723,12 +1750,42 @@ fetch('/api/assumptions')
       });
       return '{\n'+parts.join(',\n')+'\n'+pad+'}';
     };
+    const reported = (rows)=> rows.map(r=>{
+      const lines = ['  { label: '+JSON.stringify(r.label)+','];
+      lines.push('    space: '+num(r.space)+', connectivity: '+num(r.connectivity)+', ai: '+num(r.ai)+',');
+      lines.push('    opInc: '+num(r.opInc)+', netIncome: '+num(r.netIncome)+',');
+      lines.push('    interestExpense: '+num(r.interestExpense)+', interestIncome: '+num(r.interestIncome)+
+                 ', otherIncome: '+num(r.otherIncome)+', tax: '+num(r.tax)+',');
+      lines.push('    aiNameplateGW: '+num(r.aiNameplateGW)+', aiInfraRevenue: '+
+                 (r.aiInfraRevenue == null ? 'null' : num(r.aiInfraRevenue))+',');
+      const tail = '    totalCapex: '+num(r.totalCapex)+', aiCapex: '+num(r.aiCapex);
+      if(r.balance){
+        lines.push(tail+',');
+        lines.push('');
+        lines.push('    // Jump-off detail — only the last record needs these.');
+        lines.push('    connectivitySubs: '+num(r.connectivitySubs)+', connectivityEntGov: '+
+                   num(r.connectivityEntGov)+', aiAdvertising: '+num(r.aiAdvertising)+',');
+        lines.push('    balance: { cash: '+num(r.balance.cash)+', securities: '+num(r.balance.securities)+
+                   ', ppe: '+num(r.balance.ppe)+',');
+        lines.push('               totalAssets: '+num(r.balance.totalAssets)+', totalLiab: '+
+                   num(r.balance.totalLiab)+', equity: '+num(r.balance.equity)+' } },');
+      } else {
+        lines.push(tail+' },');
+      }
+      return lines.join('\n');
+    }).join('\n\n');
     return [
       HEADER_COMMENT,
       '',
       'const Q = '+JSON.stringify(Q)+';',
-      'const HQ = '+JSON.stringify(HQ)+';',
-      'const N = '+N+';',
+      '',
+      'const REPORTED = [',
+      reported(REPORTED),
+      '];',
+      '',
+      'const N  = Q.length;',
+      'const HQ = REPORTED.map(r => r.label);',
+      'const JUMPOFF = REPORTED[REPORTED.length - 1];',
       '',
       'const FIXED = '+obj(FIXED,0)+';',
       '',
@@ -1737,22 +1794,30 @@ fetch('/api/assumptions')
     ].join('\n');
   }
 
+  // Must match HEADER in scripts/model.js verbatim.
   const HEADER_COMMENT = `/* ============================================================================
  * MODEL ASSUMPTIONS — the single source of truth for every number in the model.
  *
- * Edit here, or through the Assumptions panel on the dashboard, which writes
- * this file back when the site is running locally. After editing by hand run:
+ * Edit here, or through the Model assumptions panel on /admin, which publishes
+ * to the database so every visitor sees the change. After editing by hand run:
  *   npm run build
  *
  * Conventions:
  *   - Money is $ millions per quarter unless a name says otherwise.
  *   - Ratios are fractions, not percents (0.33 means 33%).
- *   - Every forecast array has exactly 10 entries, Q326 -> Q428.
- *   - "A" figures are reported actuals; change them only on a restatement.
+ *   - Every driver array has one entry per quarter in Q, in the same order.
+ *   - REPORTED holds published results, oldest first; the last entry is the
+ *     jump-off the forecast starts from.
+ *
+ * When a new quarter is published:  npm run roll-quarter -- --data new.json
+ * To check the file is internally consistent:  npm run check
  *
  * Origin: first derived from the workbook in reference/, which is a historical
  * snapshot and is never read at build time — this file is authoritative.
- * ==========================================================================*/`;
+ * ==========================================================================*/
+
+/* eslint-disable no-unused-vars -- Q, REPORTED, N, HQ, JUMPOFF, FIXED and CASES
+   are consumed by dashboard.js once build.js concatenates both files. */`;
 
   // Collects the current values of every editable driver, in the shape the
   // API validates against.

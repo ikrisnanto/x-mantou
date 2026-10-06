@@ -38,7 +38,7 @@ const REPORTED = [
     space: 746, connectivity: 2588, ai: 737,
     opInc: -970, netIncome: -1008,
     interestExpense: -411, interestIncome: 98, otherIncome: 413, tax: 138,
-    aiNameplateGW: 0.4, aiInfraRevenue: null,
+    aiNameplateGW: 0.4, aiInfraRevenue: 311,
     totalCapex: 2825, aiCapex: 749 },
 
   { label: "Q126",
@@ -74,8 +74,8 @@ const FIXED = {
     capexPct:  [1.00,0.90,0.75,0.65,0.55,0.50,0.45,0.40,0.38,0.35]
   },
   connectivity: {
-    subAdds:   [1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3,1.2,1.2],
-    arpu:      [65,65,64,64,63,63,62,62,61,61],
+    subAdds:   [1.7,1.7,1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3],
+    arpu:      [66,66,65,65,64,64,63,63,62,62],
     entGovGrowth: [0.20,0.18,0.15,0.13,0.12,0.11,0.10,0.10,0.09,0.09],
     cogsPct:   [0.47,0.46,0.45,0.44,0.43,0.42,0.41,0.41,0.40,0.40],
     rndPct:    [0.065,0.062,0.060,0.058,0.056,0.055,0.054,0.053,0.052,0.051],
@@ -93,24 +93,41 @@ const FIXED = {
   },
   financing: {
     itShare: 0.7, itLife: 20, facilityLife: 56,
-    legacyAddback: 3681, existingDebt: 39364, existingRate: 0.055, newRate: 0.065,
+    legacyAddback: 3681, existingDebt: 39364, existingRate: 0.055, newRate: 0.0585,
     cashYield: 0.04, minCash: 15000, openingCash: 100009,
+    exitMonthShare: 0.38, arrTarget: 100000,
     otherIncome: [-50,-50,-30,-20,-10,0,0,0,0,0],
     tax: [20,20,20,20,20,20,20,20,20,20]
   },
 };
 
+/* Presets. Each one fills all three sidebar boxes: gw (nameplate at quarter end),
+   rate / spot / ltr ($mm per GW per QUARTER — the sidebar shows them x4) and
+   capexGW ($mm per incremental GW). `basis` records why the numbers are what
+   they are; it is kept as data so npm run roll-quarter does not drop it. */
 const CASES = {
   1: { name: "Case 1 — Conservative",
+       basis: "Deep price erosion: $11bn per GW per year, a third of what management's $30-50 per watt implies, easing to $10bn. Capex $32bn falling to $21bn per GW.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
        rate: [2800,2900,2900,2850,2800,2750,2650,2550,2450,2400],
        spot: [3200,3300,3300,3200,3150,3100,3000,2900,2800,2700],
        capexGW: [32000,30000,28000,26500,25000,24000,23000,22000,21500,21000], ltr: 2400 },
-  2: { name: "Case 2 — Management-consistent",
-       rate: [6000,6500,6400,6300,6200,6100,5900,5700,5400,5200],
-       spot: [12000,12000,11800,11500,11200,11000,10500,10000,9500,9000],
-       capexGW: [48000,50000,52000,54000,56000,58000,60000,62000,64000,66000], ltr: 5200 },
+  2: { name: "Case 2 — Guidance-consistent",
+       basis: "$30bn per GW per year, the bottom of the $30-50 per watt a year management cites for Rubin-class capacity, easing to $22bn as supply grows. That lands the Dec-2026 ARR proxy just above management's $100bn target. Capex $45bn to $30bn per GW gives a ~1.5 year payback against the under-a-year management claims.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+       rate: [7500,7500,7250,7000,6750,6500,6250,6000,5750,5500],
+       spot: [9500,9500,9000,8500,8000,7500,7000,6500,6250,6000],
+       capexGW: [45000,44000,42000,40000,38000,36000,34000,32000,31000,30000], ltr: 5500 },
   3: { name: "Case 3 — High-capex stress",
-       rate: [6000,6500,6400,6300,6200,6100,5900,5700,5400,5200],
-       spot: [12000,12000,11800,11500,11200,11000,10500,10000,9500,9000],
-       capexGW: [55000,60000,65000,70000,75000,80000,84000,87000,89000,90000], ltr: 5200 }
+       basis: "Case 2 pricing, but capex stuck at $55bn per GW, around the ~$51/W estimated for compute in orbit, and never coming down.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+       rate: [7500,7500,7250,7000,6750,6500,6250,6000,5750,5500],
+       spot: [9500,9500,9000,8500,8000,7500,7000,6500,6250,6000],
+       capexGW: [55000,55000,55000,55000,55000,55000,55000,55000,55000,55000], ltr: 5500 },
+  4: { name: "Case 4 — Contract run-rate, then re-pricing",
+       basis: "Starts at the ~$23bn per GW per year the disclosed deals imply (~$46bn annualised across Google, Anthropic and two undisclosed customers, against just over 2 GW at end-2026), then more than halves by 2028 because the CFO describes these as roughly 90-day commitments with 90-day exits, not locked multi-year backlog. Capex as Case 1.",
+       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+       rate: [5750,5750,5500,5000,4500,4000,3500,3000,2750,2500],
+       spot: [5500,5250,4750,4250,3750,3250,3000,2750,2500,2500],
+       capexGW: [32000,30000,28000,26500,25000,24000,23000,22000,21500,21000], ltr: 2500 }
 };

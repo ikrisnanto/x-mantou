@@ -181,7 +181,7 @@ function computeModel(inputs) {
 
 /* ============================= STATE ============================= */
 const state = {
-  gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
+  gw: CASES[1].gw.slice(),
   rateTable: CASES[1].rate.slice(),
   spotTable: CASES[1].spot.slice(),
   capexGWTable: CASES[1].capexGW.slice(),
@@ -252,8 +252,7 @@ const convVal = document.getElementById('conv-val');
 function activeRateArray(){ return state.mode==='longterm' ? state.rateTable : state.spotTable; }
 
 function buildSidebar(){
-  buildQTable(tblGW, state.gw, {step:'0.1'});
-  buildQTable(tblRate, activeRateArray(), {step:'200', clearsCase:true, scale:0.25});
+  buildQTable(tblGW, state.gw, {step:'0.1', clearsCase:true});
   buildQTable(tblCapex, state.capexGWTable, {step:'0.5', clearsCase:true, scale:1000});
   ltrInput.value = round4(state.longTermRate*4);
   ltrVal.textContent = '$'+Math.round(state.longTermRate*4).toLocaleString()+'mm';
@@ -278,7 +277,7 @@ function updateModeUI(){
     modeHint.textContent = "What newly built capacity sells for when it comes online. Older capacity drifts toward the long-run price below.";
     spotExtra.style.display='flex';
   }
-  buildQTable(tblRate, activeRateArray(), {step:'200', scale:0.25});
+  buildQTable(tblRate, activeRateArray(), {step:'200', clearsCase:true, scale:0.25});
 }
 
 document.getElementById('mode-toggle').addEventListener('click', (e)=>{
@@ -305,6 +304,7 @@ convInput.addEventListener('input', ()=>{
 document.querySelectorAll('.preset-row button[data-case]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const c = CASES[btn.dataset.case];
+    state.gw = c.gw.slice();
     state.rateTable = c.rate.slice();
     state.spotTable = c.spot.slice();
     state.capexGWTable = c.capexGW.slice();
@@ -316,7 +316,7 @@ document.querySelectorAll('.preset-row button[data-case]').forEach(btn=>{
 });
 
 document.getElementById('reset-btn').addEventListener('click', ()=>{
-  state.gw = [1.8,2.2,3,4.5,7,10,11.5,13,14,15];
+  state.gw = CASES[1].gw.slice();
   state.rateTable = CASES[1].rate.slice();
   state.spotTable = CASES[1].spot.slice();
   state.capexGWTable = CASES[1].capexGW.slice();
@@ -515,8 +515,8 @@ function renderKPIs(m){
   const gwEnd = m.ai.revGenGW[lastIdx];
   const cashEnd = m.total.closingCash[lastIdx];
   const debtEnd = m.total.totalDebtOut[lastIdx];
-  const arrDec26 = m.total.revenue[1]*0.38*12;
-  const arrGap = arrDec26-100000;
+  const arrDec26 = m.total.revenue[1]*FIXED.financing.exitMonthShare*12;
+  const arrGap = arrDec26-FIXED.financing.arrTarget;
   const paybackQ426 = state.capexGWTable[1] / ((state.mode==='longterm'?state.rateTable[1]:state.spotTable[1])*4);
 
   const cards = [
@@ -593,7 +593,7 @@ function renderPLTable(m){
   body += rowHTML('AI realized $/GW/yr (blended)', cat(REPORTED.map(()=>null), m.ai.effRate.map(v=>v*4)), {rowClass:'memo', hist:HIST});
   body += rowHTML('Total capex', cat(hist('totalCapex'), m.total.capex), {rowClass:'memo', hist:HIST});
   body += rowHTML('  of which AI capex', cat(hist('aiCapex'), m.ai.capex), {rowClass:'memo', hist:HIST});
-  body += rowHTML('ARR (exit-month revenue x 12)', REPORTED.map(()=>null).concat(m.total.revenue.map(v=>v*0.38*12)), {rowClass:'memo', hist:HIST});
+  body += rowHTML('ARR (exit-month revenue x 12)', REPORTED.map(()=>null).concat(m.total.revenue.map(v=>v*FIXED.financing.exitMonthShare*12)), {rowClass:'memo', hist:HIST});
   body += '</tbody>';
 
   el.innerHTML = head+body;
@@ -977,6 +977,8 @@ fetch('/api/assumptions')
       { path:'financing.cashYield',     shape:ONE, kind:'pct', label:'Yield on cash', unit:'/yr' },
       { path:'financing.minCash',       shape:ONE, kind:'num', label:'Minimum cash buffer', unit:'$mm' },
       { path:'financing.openingCash',   shape:ONE, kind:'num', label:'Opening cash at jump-off', unit:'$mm' },
+      { path:'financing.exitMonthShare',shape:ONE, kind:'pct', label:'Exit month share of its quarter' },
+      { path:'financing.arrTarget',     shape:ONE, kind:'num', label:'ARR run-rate target', unit:'$mm' },
     ]},
   ];
 
@@ -1064,10 +1066,16 @@ fetch('/api/assumptions')
     });
   }
 
-  /* Regenerates assumptions.js from the live objects. Comments inside the data
-     blocks are not preserved — only the file header is. */
+  /* Regenerates assumptions.js from the live objects, in the same layout as
+     writeModel() in scripts/model.js — same header, the REPORTED block with the
+     jump-off detail on its last record, and N/HQ/JUMPOFF derived rather than
+     written out. A downloaded file is therefore a drop-in replacement for
+     src/dashboard/assumptions.js that npm run check accepts.
+     Comments inside the data blocks are not preserved — only the header is.
+     Keep this in step with model.js: the two write the same file. */
   function serialize(){
-    const arr = (a)=>'['+a.map(n=>+ (+n).toFixed(10)).join(',')+']';
+    const num = (n)=> Number.isInteger(n) ? String(n) : String(+(+n).toFixed(10));
+    const arr = (a)=>'['+a.map(num).join(',')+']';
     const obj = (o, indent)=>{
       const pad=' '.repeat(indent), padIn=' '.repeat(indent+2);
       const parts = Object.entries(o).map(([k,v])=>{
@@ -1077,12 +1085,42 @@ fetch('/api/assumptions')
       });
       return '{\n'+parts.join(',\n')+'\n'+pad+'}';
     };
+    const reported = (rows)=> rows.map(r=>{
+      const lines = ['  { label: '+JSON.stringify(r.label)+','];
+      lines.push('    space: '+num(r.space)+', connectivity: '+num(r.connectivity)+', ai: '+num(r.ai)+',');
+      lines.push('    opInc: '+num(r.opInc)+', netIncome: '+num(r.netIncome)+',');
+      lines.push('    interestExpense: '+num(r.interestExpense)+', interestIncome: '+num(r.interestIncome)+
+                 ', otherIncome: '+num(r.otherIncome)+', tax: '+num(r.tax)+',');
+      lines.push('    aiNameplateGW: '+num(r.aiNameplateGW)+', aiInfraRevenue: '+
+                 (r.aiInfraRevenue == null ? 'null' : num(r.aiInfraRevenue))+',');
+      const tail = '    totalCapex: '+num(r.totalCapex)+', aiCapex: '+num(r.aiCapex);
+      if(r.balance){
+        lines.push(tail+',');
+        lines.push('');
+        lines.push('    // Jump-off detail — only the last record needs these.');
+        lines.push('    connectivitySubs: '+num(r.connectivitySubs)+', connectivityEntGov: '+
+                   num(r.connectivityEntGov)+', aiAdvertising: '+num(r.aiAdvertising)+',');
+        lines.push('    balance: { cash: '+num(r.balance.cash)+', securities: '+num(r.balance.securities)+
+                   ', ppe: '+num(r.balance.ppe)+',');
+        lines.push('               totalAssets: '+num(r.balance.totalAssets)+', totalLiab: '+
+                   num(r.balance.totalLiab)+', equity: '+num(r.balance.equity)+' } },');
+      } else {
+        lines.push(tail+' },');
+      }
+      return lines.join('\n');
+    }).join('\n\n');
     return [
       HEADER_COMMENT,
       '',
       'const Q = '+JSON.stringify(Q)+';',
-      'const HQ = '+JSON.stringify(HQ)+';',
-      'const N = '+N+';',
+      '',
+      'const REPORTED = [',
+      reported(REPORTED),
+      '];',
+      '',
+      'const N  = Q.length;',
+      'const HQ = REPORTED.map(r => r.label);',
+      'const JUMPOFF = REPORTED[REPORTED.length - 1];',
       '',
       'const FIXED = '+obj(FIXED,0)+';',
       '',
@@ -1091,22 +1129,30 @@ fetch('/api/assumptions')
     ].join('\n');
   }
 
+  // Must match HEADER in scripts/model.js verbatim.
   const HEADER_COMMENT = `/* ============================================================================
  * MODEL ASSUMPTIONS — the single source of truth for every number in the model.
  *
- * Edit here, or through the Assumptions panel on the dashboard, which writes
- * this file back when the site is running locally. After editing by hand run:
+ * Edit here, or through the Model assumptions panel on /admin, which publishes
+ * to the database so every visitor sees the change. After editing by hand run:
  *   npm run build
  *
  * Conventions:
  *   - Money is $ millions per quarter unless a name says otherwise.
  *   - Ratios are fractions, not percents (0.33 means 33%).
- *   - Every forecast array has exactly 10 entries, Q326 -> Q428.
- *   - "A" figures are reported actuals; change them only on a restatement.
+ *   - Every driver array has one entry per quarter in Q, in the same order.
+ *   - REPORTED holds published results, oldest first; the last entry is the
+ *     jump-off the forecast starts from.
+ *
+ * When a new quarter is published:  npm run roll-quarter -- --data new.json
+ * To check the file is internally consistent:  npm run check
  *
  * Origin: first derived from the workbook in reference/, which is a historical
  * snapshot and is never read at build time — this file is authoritative.
- * ==========================================================================*/`;
+ * ==========================================================================*/
+
+/* eslint-disable no-unused-vars -- Q, REPORTED, N, HQ, JUMPOFF, FIXED and CASES
+   are consumed by dashboard.js once build.js concatenates both files. */`;
 
   // Collects the current values of every editable driver, in the shape the
   // API validates against.

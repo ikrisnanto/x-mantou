@@ -45,7 +45,7 @@ export function quarterlyArrays(FIXED) {
 export function caseArrays(CASES) {
   const out = [];
   for (const [id, c] of Object.entries(CASES)) {
-    for (const key of ['rate', 'spot', 'capexGW']) {
+    for (const key of ['gw', 'rate', 'spot', 'capexGW']) {
       if (Array.isArray(c[key])) out.push({ path: `CASES.${id}.${key}`, ref: c, key, arr: c[key] });
     }
   }

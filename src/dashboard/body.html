@@ -14,11 +14,12 @@
     <div class="preset-box">
       <div class="group-eyebrow">Step 1 &middot; optional shortcut</div>
       <div class="panel-title" style="margin-top:2px;">Load a preset</div>
-      <div class="panel-hint">Not sure where to start? These fill in the pricing and cost boxes below with one of three ready-made views, from sceptical to management's own. Your build-out schedule is left alone.</div>
+      <div class="panel-hint">Not sure where to start? Each one fills in all three boxes below. They share the same build-out — the one management has guided to — and differ on what compute sells for and what it costs to build, from deep price erosion to management's own numbers.</div>
       <div class="preset-row">
         <button class="btn small" data-case="1">Case 1 · Conservative</button>
-        <button class="btn small" data-case="2">Case 2 · Mgmt-consistent</button>
+        <button class="btn small" data-case="2">Case 2 · Guidance</button>
         <button class="btn small" data-case="3">Case 3 · High-capex</button>
+        <button class="btn small" data-case="4">Case 4 · Contract run-rate</button>
       </div>
     </div>
 
@@ -64,7 +65,7 @@
 
       <div class="panel">
         <div class="panel-title">AI capex per incremental GW <span class="unit-badge">$bn</span></div>
-        <div class="panel-hint">What it costs to build each new gigawatt. Estimates for a 1 GW build run from about $20bn to $90bn. This is the single biggest driver of cash burn and borrowing.</div>
+        <div class="panel-hint">What it costs to build each new gigawatt. SpaceX says new compute pays its cost back in under a year, which implies something close to what a gigawatt earns in a year. Outside estimates run from about $16bn on the ground to $50bn in orbit. This is the single biggest driver of cash burn and borrowing.</div>
         <div class="qtable" id="tbl-capex"></div>
       </div>
     </div>
@@ -147,6 +148,7 @@
       <ul>
         <li><b>Long-term contract</b> assumes every gigawatt earns the same steady price, the way a signed multi-year deal would. Simple, and close to how the original model treats it.</li>
         <li><b>Spot market</b> is messier and more realistic. Each quarter's new capacity is sold at whatever the going rate is when it switches on, then drifts toward the long-run price over the period you choose. The rate shown is the average across everything running that quarter, weighted by size &mdash; so it can sit above or below the long-run price for a while when a lot of new, expensive capacity arrives at once.</li>
+        <li>Some reference points from SpaceX itself, as of the Q2 2026 results: 1.4 GW of compute installed, guided to more than 2 GW by the end of 2026 and around 10 GW by the end of 2027; new capacity expected to earn $30 to $50 per watt a year and pay for itself in under a year; about a tenth of all compute kept back to train Grok; and a target of a $100bn annualised revenue run-rate based on December 2026 revenue. Disclosed customer deals run to roughly $46bn a year, though management describes them as short commitments rather than locked multi-year backlog.</li>
         <li>Everything else &mdash; the Space and Connectivity businesses, cost ratios, depreciation, financing and tax &mdash; stays fixed at the base case on this page.</li>
         <li>New spending doesn't start depreciating right away &mdash; there's a six-month lag while it gets built and switched on. After that it's written off as 70% servers over five years and 30% buildings over fourteen.</li>
         <li>Cash and debt roll forward quarter by quarter. If cash would fall below a $15bn floor, the model borrows the difference at 6.5% a year. Existing debt of $39bn costs 5.5%, and cash on hand earns 4%.</li>

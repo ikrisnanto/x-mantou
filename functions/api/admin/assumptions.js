@@ -23,6 +23,7 @@ const ALLOWED = {
   'financing.itShare': 's', 'financing.itLife': 's', 'financing.facilityLife': 's',
   'financing.legacyAddback': 's', 'financing.existingDebt': 's', 'financing.existingRate': 's',
   'financing.newRate': 's', 'financing.cashYield': 's', 'financing.minCash': 's', 'financing.openingCash': 's',
+  'financing.exitMonthShare': 's', 'financing.arrTarget': 's',
 };
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
