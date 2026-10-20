@@ -1,38 +1,29 @@
 /* ============================================================================
  * MODEL ASSUMPTIONS — the single source of truth for every number in the model.
  *
- * This is the file to edit when you want to change the model. Everything here
- * feeds the engine in dashboard.js; nothing else in the codebase hardcodes a
- * model figure. After editing, run:  npm run build
+ * Edit here, or through the Model assumptions panel on /admin, which publishes
+ * to the database so every visitor sees the change. After editing by hand run:
+ *   npm run build
  *
- * Conventions used throughout:
+ * Conventions:
  *   - Money is $ millions per quarter unless a name says otherwise.
  *   - Ratios are fractions, not percents (0.33 means 33%).
- *   - Every forecast array has exactly 10 entries, one per quarter of Q,
- *     running Q326 -> Q428. Keep that length or the engine will read undefined.
- *   - "A" figures are reported actuals and should only change when SpaceX
- *     restates or a new quarter is published.
+ *   - Every driver array has one entry per quarter in Q, in the same order.
+ *   - REPORTED holds published results, oldest first; the last entry is the
+ *     jump-off the forecast starts from.
  *
- * Origin: figures were first derived from SpaceX_PL_Business_Case_Model.xlsx
- * (kept in reference/ as a historical snapshot). That workbook is NO LONGER
- * authoritative and is never read at build time — this file is.
+ * When a new quarter is published:  npm run roll-quarter -- --data new.json
+ * To check the file is internally consistent:  npm run check
+ *
+ * Origin: first derived from the workbook in reference/, which is a historical
+ * snapshot and is never read at build time — this file is authoritative.
  * ==========================================================================*/
 
-/* eslint-disable no-unused-vars -- Q, HQ, N, FIXED and CASES are consumed by
-   dashboard.js once build.js concatenates both files into one scope. */
+/* eslint-disable no-unused-vars -- Q, REPORTED, N, HQ, JUMPOFF, FIXED and CASES
+   are consumed by dashboard.js once build.js concatenates both files. */
 
-/* Quarters the model forecasts. Add or remove entries here and every driver
-   array below must match in length — npm run check verifies that for you. */
-const Q = ["Q326","Q426","Q127","Q227","Q327","Q427","Q128","Q228","Q328","Q428"];
+const Q = ["Q426","Q127","Q227","Q327","Q427","Q128","Q228","Q328","Q428"];
 
-/* Reported quarters, oldest first. THE LAST ENTRY IS THE JUMP-OFF: the forecast
-   starts from it, so its balance sheet and segment detail seed the engine.
-   Earlier entries only need what the historical columns display; anything not
-   reported for a quarter is null.
-
-   To roll the model forward when a new quarter is published:  npm run roll-quarter
-   which appends a record here and drops the quarter it replaces from Q and from
-   every driver array. */
 const REPORTED = [
   { label: "Q225",
     space: 746, connectivity: 2588, ai: 737,
@@ -45,7 +36,7 @@ const REPORTED = [
     space: 619, connectivity: 3257, ai: 818,
     opInc: -1943, netIncome: -4276,
     interestExpense: -664, interestIncome: 213, otherIncome: -1876, tax: 6,
-    aiNameplateGW: 1.0, aiInfraRevenue: null,
+    aiNameplateGW: 1, aiInfraRevenue: null,
     totalCapex: 10107, aiCapex: 7723 },
 
   { label: "Q226",
@@ -53,12 +44,19 @@ const REPORTED = [
     opInc: -143, netIncome: -541,
     interestExpense: -629, interestIncome: 340, otherIncome: -86, tax: 23,
     aiNameplateGW: 1.4, aiInfraRevenue: 2194,
-    totalCapex: 18369, aiCapex: 15828,
+    totalCapex: 18369, aiCapex: 15828 },
+
+  { label: "Q326",
+    space: 1767, connectivity: 5248, ai: 7560,
+    opInc: 2791, netIncome: 4404,
+    interestExpense: -675, interestIncome: 873, otherIncome: 1025, tax: -390,
+    aiNameplateGW: 1.7, aiInfraRevenue: 7022,
+    totalCapex: 19593, aiCapex: 16444,
 
     // Jump-off detail — only the last record needs these.
-    connectivitySubs: 12, connectivityEntGov: 1806, aiAdvertising: 367,
-    balance: { cash: 93522, securities: 6487, ppe: 65736,
-               totalAssets: 192770, totalLiab: 65546, equity: 127224 } },
+    connectivitySubs: 13.6, connectivityEntGov: 2127, aiAdvertising: 538,
+    balance: { cash: 51294, securities: 38561, ppe: 89483,
+               totalAssets: 254045, totalLiab: 77277, equity: 176768 } },
 ];
 
 const N  = Q.length;
@@ -67,67 +65,94 @@ const JUMPOFF = REPORTED[REPORTED.length - 1];
 
 const FIXED = {
   space: {
-    revGrowth: [0.10,0.12,0.10,0.09,0.08,0.08,0.07,0.07,0.06,0.06],
-    cogsPct:   [0.33,0.32,0.31,0.30,0.30,0.29,0.28,0.28,0.27,0.27],
-    rndPct:    [1.00,0.90,0.80,0.70,0.62,0.55,0.50,0.46,0.42,0.39],
-    sgaPct:    [0.10,0.10,0.09,0.09,0.09,0.08,0.08,0.08,0.07,0.07],
-    capexPct:  [1.00,0.90,0.75,0.65,0.55,0.50,0.45,0.40,0.38,0.35]
+    revGrowth: [-0.1,0.08,0.08,0.07,0.07,0.06,0.06,0.06,0.05],
+    cogsPct: [0.32,0.31,0.3,0.3,0.29,0.28,0.28,0.27,0.27],
+    rndPct: [0.9,0.8,0.7,0.62,0.55,0.5,0.46,0.42,0.39],
+    sgaPct: [0.1,0.09,0.09,0.09,0.08,0.08,0.08,0.07,0.07],
+    capexPct: [0.9,0.75,0.65,0.55,0.5,0.45,0.4,0.38,0.35]
   },
   connectivity: {
-    subAdds:   [1.7,1.7,1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3],
-    arpu:      [66,66,65,65,64,64,63,63,62,62],
-    entGovGrowth: [0.20,0.18,0.15,0.13,0.12,0.11,0.10,0.10,0.09,0.09],
-    cogsPct:   [0.47,0.46,0.45,0.44,0.43,0.42,0.41,0.41,0.40,0.40],
-    rndPct:    [0.065,0.062,0.060,0.058,0.056,0.055,0.054,0.053,0.052,0.051],
-    sgaPct:    [0.06,0.058,0.056,0.054,0.052,0.05,0.049,0.048,0.047,0.046],
-    capexPct:  [0.30,0.29,0.28,0.27,0.26,0.25,0.24,0.24,0.23,0.23]
+    subAdds: [1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3,1.2],
+    arpu: [72,71.5,71,70.5,70,69.5,69,68.5,68],
+    entGovGrowth: [0.18,0.15,0.13,0.12,0.11,0.1,0.1,0.09,0.09],
+    cogsPct: [0.46,0.45,0.44,0.43,0.42,0.41,0.41,0.4,0.4],
+    rndPct: [0.062,0.06,0.058,0.056,0.055,0.054,0.053,0.052,0.051],
+    sgaPct: [0.058,0.056,0.054,0.052,0.05,0.049,0.048,0.047,0.046],
+    capexPct: [0.29,0.28,0.27,0.26,0.25,0.24,0.24,0.23,0.23]
   },
   ai: {
-    cogsPct:   [0.40,0.39,0.38,0.37,0.36,0.35,0.34,0.34,0.33,0.33],
-    rndPct:    [0.75,0.65,0.58,0.52,0.47,0.43,0.40,0.37,0.35,0.33],
-    sgaPct:    [0.18,0.16,0.15,0.14,0.13,0.12,0.11,0.11,0.10,0.10],
-    monetizable: [0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9],
-    grok:      [700,900,1150,1400,1650,1900,2150,2400,2650,2900],
-    cursor:    [0,1200,1500,1800,2100,2400,2700,3000,3300,3600],
-    adGrowth:  [-0.02,0,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.02]
+    cogsPct: [0.42,0.4,0.38,0.37,0.36,0.35,0.34,0.33,0.33],
+    rndPct: [0.3,0.27,0.25,0.23,0.21,0.2,0.19,0.18,0.17],
+    sgaPct: [0.13,0.11,0.1,0.09,0.09,0.08,0.08,0.08,0.07],
+    monetizable: [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5],
+    grok: [900,1150,1400,1650,1900,2150,2400,2650,2900],
+    cursor: [1200,1500,1800,2100,2400,2700,3000,3300,3600],
+    adGrowth: [0,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.02]
   },
   financing: {
-    itShare: 0.7, itLife: 20, facilityLife: 56,
-    legacyAddback: 3681, existingDebt: 39364, existingRate: 0.055, newRate: 0.0585,
-    cashYield: 0.04, minCash: 15000, openingCash: 100009,
-    exitMonthShare: 0.38, arrTarget: 100000,
-    otherIncome: [-50,-50,-30,-20,-10,0,0,0,0,0],
-    tax: [20,20,20,20,20,20,20,20,20,20]
-  },
+    itShare: 0.7,
+    itLife: 20,
+    facilityLife: 56,
+    legacyAddback: 6007,
+    existingDebt: 38844,
+    existingRate: 0.0695,
+    newRate: 0.0585,
+    cashYield: 0.04,
+    minCash: 15000,
+    openingCash: 89855,
+    exitMonthShare: 0.38,
+    arrTarget: 100000,
+    otherIncome: [-50,-30,-20,-10,0,0,0,0,0],
+    taxRate: 0.21,
+    nolOpening: 37448,
+    nolCap: 0.8
+  }
 };
 
-/* Presets. Each one fills all three sidebar boxes: gw (nameplate at quarter end),
-   rate / spot / ltr ($mm per GW per QUARTER — the sidebar shows them x4) and
-   capexGW ($mm per incremental GW). `basis` records why the numbers are what
-   they are; it is kept as data so npm run roll-quarter does not drop it. */
 const CASES = {
-  1: { name: "Case 1 — Conservative",
-       basis: "Deep price erosion: $11bn per GW per year, a third of what management's $30-50 per watt implies, easing to $10bn. Capex $32bn falling to $21bn per GW.",
-       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
-       rate: [2800,2900,2900,2850,2800,2750,2650,2550,2450,2400],
-       spot: [3200,3300,3300,3200,3150,3100,3000,2900,2800,2700],
-       capexGW: [32000,30000,28000,26500,25000,24000,23000,22000,21500,21000], ltr: 2400 },
-  2: { name: "Case 2 — Guidance-consistent",
-       basis: "$30bn per GW per year, the bottom of the $30-50 per watt a year management cites for Rubin-class capacity, easing to $22bn as supply grows. That lands the Dec-2026 ARR proxy just above management's $100bn target. Capex $45bn to $30bn per GW gives a ~1.5 year payback against the under-a-year management claims.",
-       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
-       rate: [7500,7500,7250,7000,6750,6500,6250,6000,5750,5500],
-       spot: [9500,9500,9000,8500,8000,7500,7000,6500,6250,6000],
-       capexGW: [45000,44000,42000,40000,38000,36000,34000,32000,31000,30000], ltr: 5500 },
-  3: { name: "Case 3 — High-capex stress",
-       basis: "Case 2 pricing, but capex stuck at $55bn per GW, around the ~$51/W estimated for compute in orbit, and never coming down.",
-       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
-       rate: [7500,7500,7250,7000,6750,6500,6250,6000,5750,5500],
-       spot: [9500,9500,9000,8500,8000,7500,7000,6500,6250,6000],
-       capexGW: [55000,55000,55000,55000,55000,55000,55000,55000,55000,55000], ltr: 5500 },
-  4: { name: "Case 4 — Contract run-rate, then re-pricing",
-       basis: "Starts at the ~$23bn per GW per year the disclosed deals imply (~$46bn annualised across Google, Anthropic and two undisclosed customers, against just over 2 GW at end-2026), then more than halves by 2028 because the CFO describes these as roughly 90-day commitments with 90-day exits, not locked multi-year backlog. Capex as Case 1.",
-       gw: [1.8,2.2,3,4.5,7,10,11.5,13,14,15],
-       rate: [5750,5750,5500,5000,4500,4000,3500,3000,2750,2500],
-       spot: [5500,5250,4750,4250,3750,3250,3000,2750,2500,2500],
-       capexGW: [32000,30000,28000,26500,25000,24000,23000,22000,21500,21000], ltr: 2500 }
+  1: {
+    name: "Case 1 — Conservative",
+    basis: "Price per rented watt starts near the ~$27-30 a year Q3 2026 actually realised and erodes to $18 by Q428 as supply catches up. Capex $30bn falling to $21bn per GW. Management's base build-out.",
+    gw: [2.8,4,6.5,9.5,13,15,17,19,21],
+    rate: [7500,7500,7250,6750,6250,5750,5250,4750,4500],
+    spot: [8000,8000,7500,7000,6500,6000,5500,5000,4750],
+    capexGW: [30000,28000,26500,25000,24000,23000,22000,21500,21000],
+    ltr: 4500
+  },
+  2: {
+    name: "Case 2 — Guidance-consistent",
+    basis: "Calibrated to the Q3 2026 call: ~$100bn Dec-2026 ARR, Q1 2027 revenue inside the $33-37bn guide, and pricing 'slightly above the high end of the $30-50 per watt range' ($52) through 2027, easing to $44 by Q428. Capex $31bn per GW in Q426 lands inside the $35-40bn Q4 capex guide; payback under a year. Build-out ~13 GW by end-2027, which Musk is 'highly confident' of.",
+    gw: [2.8,4,6.5,9.5,13,15,17,19,21],
+    rate: [8250,11750,13000,13000,13000,12500,12000,11500,11000],
+    spot: [12500,13500,13750,13750,13500,13000,12500,12000,11500],
+    capexGW: [31000,31000,30000,29000,28000,27000,26000,25000,24000],
+    ltr: 11000
+  },
+  3: {
+    name: "Case 3 — High-capex stress",
+    basis: "Case 2 pricing and build-out, but capex stuck at $55bn per GW, what Q3 2026 actually cost ($16.4bn of SI capex for 0.3 GW added), and never coming down.",
+    gw: [2.8,4,6.5,9.5,13,15,17,19,21],
+    rate: [8250,11750,13000,13000,13000,12500,12000,11500,11000],
+    spot: [12500,13500,13750,13750,13500,13000,12500,12000,11500],
+    capexGW: [55000,55000,55000,55000,55000,55000,55000,55000,55000],
+    ltr: 11000
+  },
+  4: {
+    name: "Case 4 — Contract run-rate, then re-pricing",
+    basis: "Starts at ~$38 per rented watt a year, the Dec-2026 run-rate of the disclosed deals (~$53bn a year on ~1.4 GW rented), then rolls down to $20 as Musk's short, spot-priced contracts reprice in a looser market. Capex as Case 1.",
+    gw: [2.8,4,6.5,9.5,13,15,17,19,21],
+    rate: [9500,9500,9000,8250,7500,6750,6000,5250,5000],
+    spot: [9250,9000,8500,7750,7000,6250,5500,5000,5000],
+    capexGW: [30000,28000,26500,25000,24000,23000,22000,21500,21000],
+    ltr: 5000
+  },
+  5: {
+    name: "Case 5 — Stretch build-out",
+    basis: "Case 2 pricing and capex with Musk's stretch: ~20 GW of compute by end-2027 (he plans ~20 GW of incremental power, 'so 23 gigawatts roughly in total' of power), then +2 GW a quarter.",
+    gw: [2.8,4.3,8,13.5,20,22,24,26,28],
+    rate: [8250,11750,13000,13000,13000,12500,12000,11500,11000],
+    spot: [12500,13500,13750,13750,13500,13000,12500,12000,11500],
+    capexGW: [31000,31000,30000,29000,28000,27000,26000,25000,24000],
+    ltr: 11000
+  }
 };

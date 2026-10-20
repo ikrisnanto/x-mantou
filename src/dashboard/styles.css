@@ -102,8 +102,8 @@
   .btn.ghost{ background:transparent; }
   .btn.small{ padding:5px 8px; font-size:13px; }
 
-  .qtable{ display:grid; grid-template-columns:repeat(10, minmax(62px,1fr)); gap:4px; overflow-x:auto; padding-bottom:2px; }
-  .qtable.qtable-narrow{ grid-template-columns:repeat(10, minmax(40px,1fr)); }
+  .qtable{ display:grid; grid-template-columns:repeat(var(--qcols, 10), minmax(62px,1fr)); gap:4px; overflow-x:auto; padding-bottom:2px; }
+  .qtable.qtable-narrow{ grid-template-columns:repeat(var(--qcols, 10), minmax(40px,1fr)); }
   .qcell{ display:flex; flex-direction:column; gap:3px; min-width:62px; }
   .qcell label{ font-size:10.5px; color:var(--text-faint); text-align:center; font-weight:700; }
   .qcell input{

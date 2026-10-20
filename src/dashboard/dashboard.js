@@ -7,6 +7,12 @@
  * IIFE, so the constants declared there are in scope.
  * ==========================================================================*/
 
+/* 'Q326' shifted by k quarters, e.g. shiftQuarter('Q126', -1) === 'Q425'. */
+function shiftQuarter(lbl, k){
+  const n = Number(lbl.slice(2))*4 + Number(lbl[1]) - 1 + k;
+  return 'Q' + (((n%4)+4)%4 + 1) + String(Math.floor(n/4)).padStart(2,'0');
+}
+
 function computeModel(inputs) {
   const { gw, rateTable, spotTable, capexGWTable, mode, longTermRate, convergenceYears } = inputs;
   const f = FIXED;
@@ -113,14 +119,29 @@ function computeModel(inputs) {
   }
 
   const rate = f.financing.itShare/f.financing.itLife + (1-f.financing.itShare)/f.financing.facilityLife;
+  const LAG = 2;   // quarters from spend to switch-on
   const depFlow = totCapex.map(c=>c*rate);
+  // Capex from the last LAG reported quarters is still being switched on at the
+  // jump-off; the cost ratios only carry depreciation on what was already in
+  // service, so this spend starts depreciating inside the forecast window.
+  const seedFlow = [];
+  for (let k=LAG; k>=1; k--){
+    const r = REPORTED.find(x=>x.label===shiftQuarter(Q[0], -k));
+    seedFlow.push((r ? r.totalCapex : 0)*rate);
+  }
+  const flowAt = (i)=> i>=0 ? depFlow[i] : seedFlow[LAG+i];
   const inServiceCum = new Array(N).fill(0);
   for (let t=0;t<N;t++){
     const prevCum = t>0?inServiceCum[t-1]:0;
-    const flowLag2 = t-2>=0 ? depFlow[t-2] : 0;
-    inServiceCum[t] = prevCum + flowLag2;
+    inServiceCum[t] = prevCum + flowAt(t-LAG);
   }
   const totOpInc = totOpIncBeforeDep.map((v,t)=>v-inServiceCum[t]);
+
+  // Tax: a flat rate on pre-tax profit, after past losses are used. As under US
+  // rules, carried-forward losses shelter at most nolCap of each quarter's profit;
+  // a loss-making quarter adds to the pool and pays nothing.
+  const pretax=[], tax=[], nolEnd=[];
+  let nol = f.financing.nolOpening;
 
   const openingCash=[], intInc=[], openingDebt=[], intExp=[], cfoProxy=[], cashBeforeFin=[], newDebt=[], closingCash=[], closingDebt=[], totalDebtOut=[];
   let prevCash = f.financing.openingCash, prevDebt = 0;
@@ -129,7 +150,17 @@ function computeModel(inputs) {
     intInc.push(prevCash*f.financing.cashYield/4);
     openingDebt.push(prevDebt);
     intExp.push(-(f.financing.existingDebt*f.financing.existingRate/4 + prevDebt*f.financing.newRate/4));
-    const cfo = totOpIncBeforeDep[t] + f.financing.legacyAddback - f.financing.tax[t] + intInc[t] + intExp[t];
+    const pt = totOpInc[t] + intExp[t] + intInc[t] + f.financing.otherIncome[t];
+    let tx = 0;
+    if (pt > 0) {
+      const used = Math.min(nol, pt*f.financing.nolCap);
+      nol -= used;
+      tx = (pt-used)*f.financing.taxRate;
+    } else {
+      nol -= pt;
+    }
+    pretax.push(pt); tax.push(tx); nolEnd.push(nol);
+    const cfo = totOpIncBeforeDep[t] + f.financing.legacyAddback - tx + intInc[t] + intExp[t];
     cfoProxy.push(cfo);
     const cbf = prevCash + cfo - totCapex[t];
     cashBeforeFin.push(cbf);
@@ -143,15 +174,10 @@ function computeModel(inputs) {
     prevCash = cc; prevDebt = cd;
   }
 
-  const netIncome=[], pretax=[];
-  for (let t=0;t<N;t++){
-    const pt = totOpInc[t] + intExp[t] + intInc[t] + f.financing.otherIncome[t];
-    pretax.push(pt);
-    netIncome.push(pt - f.financing.tax[t]);
-  }
+  const netIncome = pretax.map((pt,t)=>pt - tax[t]);
 
   out.total = {revenue:totRev, cogs:totCogs, rnd:totRnd, sga:totSga, opIncBeforeDep:totOpIncBeforeDep,
-    dep:inServiceCum, opInc:totOpInc, intExp, intInc, otherIncome:f.financing.otherIncome, pretax, tax:f.financing.tax,
+    dep:inServiceCum, opInc:totOpInc, intExp, intInc, otherIncome:f.financing.otherIncome, pretax, tax, nolEnd,
     netIncome, capex:totCapex, cfoProxy, newDebt, closingCash, closingDebt, totalDebtOut, openingCash, openingDebt};
 
   const B0 = JUMPOFF.balance;
@@ -222,6 +248,7 @@ function fmtGW(x){ return x.toFixed(1)+' GW'; }
 /* ============================= INPUT TABLES ============================= */
 function buildQTable(container, arr, opts){
   container.innerHTML='';
+  container.style.setProperty('--qcols', Q.length);
   const scale = opts.scale||1;
   Q.forEach((q,i)=>{
     const cell = document.createElement('div'); cell.className='qcell';
@@ -271,7 +298,7 @@ function updatePresetUI(){
 function updateModeUI(){
   document.querySelectorAll('#mode-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.mode===state.mode));
   if(state.mode==='longterm'){
-    modeHint.textContent = "What one gigawatt earns in a year, the same for every gigawatt — as if it were all on long-term contract.";
+    modeHint.textContent = "What one gigawatt rented to outside customers earns in a year, the same for every gigawatt — as if it were all on long-term contract. About half of SpaceX's compute is rented out; the rest runs Grok and Cursor, which are counted separately.";
     spotExtra.style.display='none';
   } else {
     modeHint.textContent = "What newly built capacity sells for when it comes online. Older capacity drifts toward the long-run price below.";
@@ -515,20 +542,23 @@ function renderKPIs(m){
   const gwEnd = m.ai.revGenGW[lastIdx];
   const cashEnd = m.total.closingCash[lastIdx];
   const debtEnd = m.total.totalDebtOut[lastIdx];
-  const arrDec26 = m.total.revenue[1]*FIXED.financing.exitMonthShare*12;
-  const arrGap = arrDec26-FIXED.financing.arrTarget;
-  const paybackQ426 = state.capexGWTable[1] / ((state.mode==='longterm'?state.rateTable[1]:state.spotTable[1])*4);
+  // Labels and indices come from Q so the cards stay right after a roll-forward.
+  const firstQ = Q[0], lastQ = Q[lastIdx];
+  const iDec26 = Q.indexOf('Q426');
+  const arrDec26 = iDec26<0 ? null : m.total.revenue[iDec26]*FIXED.financing.exitMonthShare*12;
+  const arrGap = arrDec26===null ? 0 : arrDec26-FIXED.financing.arrTarget;
+  const payback = state.capexGWTable[0] / ((state.mode==='longterm'?state.rateTable[0]:state.spotTable[0])*4);
 
   const cards = [
-    { label:"Total revenue · Q428", value: fmtAutoUSD(totalRevEnd), sub: (totalRevEnd/m.total.revenue[0]).toFixed(1)+'x vs Q326' },
-    { label:"Net income (loss) · Q428", value: fmtAutoUSD(niEnd), sub: pill(niEnd>=0?'Profitable':'Loss-making', niEnd>=0?'good':'bad') },
-    { label:"AI revenue · Q428", value: fmtAutoUSD(aiRevEnd), sub: fmtPct(aiShare,0)+' of total revenue' },
-    { label:"AI revenue-generating GW · Q428", value: fmtGW(gwEnd), sub: fmtGW(m.ai.nameplateGW[lastIdx])+' nameplate' },
-    { label:"Cash &amp; securities · Q428", value: fmtAutoUSD(cashEnd), sub: cashEnd<=15001? pill('At minimum buffer','warn') : pill('Above buffer','good') },
-    { label:"Total debt outstanding · Q428", value: fmtAutoUSD(debtEnd), sub: fmtAutoUSD(debtEnd-39364)+' newly raised' },
-    { label:"ARR run-rate · Dec 2026E", value: fmtAutoUSD(arrDec26), sub: arrGap>=0? pill('Above $100B guide','good') : pill(fmtAutoUSD(Math.abs(arrGap))+' short of $100B','warn') },
-    { label:"New-capacity payback · Q426", value: paybackQ426.toFixed(2)+' yrs', sub: paybackQ426<=1? pill('Meets <1yr guidance','good') : pill('Above 1yr guidance','warn') }
-  ];
+    { label:"Total revenue · "+lastQ, value: fmtAutoUSD(totalRevEnd), sub: (totalRevEnd/m.total.revenue[0]).toFixed(1)+'x vs '+firstQ },
+    { label:"Net income (loss) · "+lastQ, value: fmtAutoUSD(niEnd), sub: pill(niEnd>=0?'Profitable':'Loss-making', niEnd>=0?'good':'bad') },
+    { label:"AI revenue · "+lastQ, value: fmtAutoUSD(aiRevEnd), sub: fmtPct(aiShare,0)+' of total revenue' },
+    { label:"AI GW rented out · "+lastQ, value: fmtGW(gwEnd), sub: fmtGW(m.ai.nameplateGW[lastIdx])+' nameplate' },
+    { label:"Cash &amp; securities · "+lastQ, value: fmtAutoUSD(cashEnd), sub: cashEnd<=FIXED.financing.minCash+1? pill('At minimum buffer','warn') : pill('Above buffer','good') },
+    { label:"Total debt outstanding · "+lastQ, value: fmtAutoUSD(debtEnd), sub: fmtAutoUSD(debtEnd-FIXED.financing.existingDebt)+' newly raised' },
+    arrDec26===null ? null : { label:"ARR run-rate · Dec 2026E", value: fmtAutoUSD(arrDec26), sub: arrGap>=0? pill('Above $100B guide','good') : pill(fmtAutoUSD(Math.abs(arrGap))+' short of $100B','warn') },
+    { label:"New-capacity payback · "+firstQ, value: payback.toFixed(2)+' yrs', sub: payback<=1? pill('Meets <1yr guidance','good') : pill('Above 1yr guidance','warn') }
+  ].filter(Boolean);
   grid.innerHTML = cards.map(c=>
     '<div class="kpi"><div class="kpi-label">'+c.label+'</div><div class="kpi-value num">'+c.value+'</div><div class="kpi-sub">'+c.sub+'</div></div>'
   ).join('');
@@ -572,7 +602,7 @@ function renderPLTable(m){
   body += rowHTML('Cost of revenue', cat(zeros, m.total.cogs), {hist:HIST});
   body += rowHTML('Research &amp; development', cat(zeros, m.total.rnd), {hist:HIST});
   body += rowHTML('Selling, general &amp; admin', cat(zeros, m.total.sga), {hist:HIST});
-  body += rowHTML('Depreciation, new capex', cat(zeros, m.total.dep), {hist:HIST});
+  body += rowHTML('Depreciation, recent &amp; new capex', cat(zeros, m.total.dep), {hist:HIST});
 
   const opIncHist = hist('opInc');
   body += rowHTML('Income (loss) from operations', cat(opIncHist, m.total.opInc), {rowClass:'total', hist:HIST});
@@ -594,6 +624,7 @@ function renderPLTable(m){
   body += rowHTML('Total capex', cat(hist('totalCapex'), m.total.capex), {rowClass:'memo', hist:HIST});
   body += rowHTML('  of which AI capex', cat(hist('aiCapex'), m.ai.capex), {rowClass:'memo', hist:HIST});
   body += rowHTML('ARR (exit-month revenue x 12)', REPORTED.map(()=>null).concat(m.total.revenue.map(v=>v*FIXED.financing.exitMonthShare*12)), {rowClass:'memo', hist:HIST});
+  body += rowHTML('Tax losses left to carry forward', REPORTED.map(()=>null).concat(m.total.nolEnd), {rowClass:'memo', hist:HIST});
   body += '</tbody>';
 
   el.innerHTML = head+body;
@@ -616,7 +647,7 @@ function renderBSTable(m){
   body += rowHTML('Total assets', cat(B.totalAssets, m.bs.totalAssets), {rowClass:'total', hist:HIST});
 
   body += sectionRow('Liabilities', cols.length);
-  body += rowHTML('Total debt (existing + new)', cat(39364, m.bs.totalDebtOut), {hist:HIST});
+  body += rowHTML('Total debt (existing + new)', cat(FIXED.financing.existingDebt, m.bs.totalDebtOut), {hist:HIST});
   body += rowHTML('Other liabilities (held flat)', cat(m.bs.otherLiab, new Array(N).fill(m.bs.otherLiab)), {hist:HIST});
   body += rowHTML('Total liabilities', cat(B.totalLiab, m.bs.totalLiab), {rowClass:'total', hist:HIST});
 
@@ -672,6 +703,19 @@ function applyOverrides(o){
   });
   return n;
 }
+
+/* Page copy that names the latest reported quarter or the horizon is filled
+   from the model, so rolling a quarter forward never leaves stale text. */
+function longQuarter(lbl){ return 'Q'+lbl[1]+' 20'+lbl.slice(2); }
+const FILLS = {
+  'jumpoff-long': longQuarter(JUMPOFF.label),
+  'jumpoff-gw': JUMPOFF.aiNameplateGW+' GW at '+JUMPOFF.label,
+  'horizon-long': longQuarter(Q[N-1]),
+};
+document.querySelectorAll('[data-fill]').forEach(el=>{
+  const v = FILLS[el.dataset.fill];
+  if(v) el.textContent = v;
+});
 
 buildSidebar();
 renderAll();
@@ -932,7 +976,7 @@ fetch('/api/assumptions')
  * Copy/Download instead and a visitor's edits stay in their browser session.
  * ==========================================================================*/
 (function(){
-  const QTR = 'quarterly';   // 10 values, Q326 -> Q428
+  const QTR = 'quarterly';   // one value per quarter in Q
   const ONE = 'scalar';
 
   // kind: how the stored value is shown. pct is stored as a fraction.
@@ -954,7 +998,7 @@ fetch('/api/assumptions')
       { path:'connectivity.capexPct',     shape:QTR, kind:'pct', label:'Capex, % of revenue' },
     ]},
     { title:'AI segment', rows:[
-      { path:'ai.monetizable', shape:QTR, kind:'pct', label:'Monetizable share of compute' },
+      { path:'ai.monetizable', shape:QTR, kind:'pct', label:'Share of compute rented to customers' },
       { path:'ai.cogsPct',     shape:QTR, kind:'pct', label:'Cost of revenue, % of revenue' },
       { path:'ai.rndPct',      shape:QTR, kind:'pct', label:'R&D, % of revenue' },
       { path:'ai.sgaPct',      shape:QTR, kind:'pct', label:'SG&A, % of revenue' },
@@ -964,7 +1008,6 @@ fetch('/api/assumptions')
     ]},
     { title:'Below the line', rows:[
       { path:'financing.otherIncome', shape:QTR, kind:'num', label:'Other income (expense), net', unit:'$mm/qtr' },
-      { path:'financing.tax',         shape:QTR, kind:'num', label:'Income tax', unit:'$mm/qtr' },
     ]},
     { title:'Financing & depreciation', rows:[
       { path:'financing.itShare',       shape:ONE, kind:'pct', label:'IT equipment share of capex' },
@@ -979,6 +1022,9 @@ fetch('/api/assumptions')
       { path:'financing.openingCash',   shape:ONE, kind:'num', label:'Opening cash at jump-off', unit:'$mm' },
       { path:'financing.exitMonthShare',shape:ONE, kind:'pct', label:'Exit month share of its quarter' },
       { path:'financing.arrTarget',     shape:ONE, kind:'num', label:'ARR run-rate target', unit:'$mm' },
+      { path:'financing.taxRate',       shape:ONE, kind:'pct', label:'Tax rate on profit' },
+      { path:'financing.nolOpening',    shape:ONE, kind:'num', label:'Tax losses to carry forward at jump-off', unit:'$mm' },
+      { path:'financing.nolCap',        shape:ONE, kind:'pct', label:'Max share of profit past losses can shelter' },
     ]},
   ];
 
