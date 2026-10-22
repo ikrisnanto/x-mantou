@@ -505,7 +505,9 @@
         <li><b>Spot market</b> is messier and more realistic. Each quarter's new capacity is sold at whatever the going rate is when it switches on, then drifts toward the long-run price over the period you choose. The rate shown is the average across everything running that quarter, weighted by size &mdash; so it can sit above or below the long-run price for a while when a lot of new, expensive capacity arrives at once.</li>
         <li>Some reference points from SpaceX itself, as of the Q3 2026 results: 1.7 GW of compute installed, guided to 2.5&ndash;3 GW by the end of 2026. Musk is "highly confident" of about 13 GW by the end of 2027 and is building enough power for about 23 GW if everything goes right. Compute is split roughly half and half between outside customers and SpaceX's own Grok and Cursor. Rental pricing is "tracking slightly above the high end" of $30&ndash;50 per watt a year, new capacity pays back in under a year, and Musk prefers short contracts at spot prices. Guidance: Q4 2026 capex of $35&ndash;40bn, Q1 2027 revenue of $33&ndash;37bn, a $100bn run-rate on December 2026 revenue, and, from Musk, $500bn to $1 trillion of annual recurring revenue by the end of 2027. Backlog was $63bn, about $42bn of it due within a year.</li>
         <li>Everything else &mdash; the Space and Connectivity businesses, cost ratios, depreciation, financing and tax &mdash; stays fixed at the base case on this page.</li>
-        <li>New spending doesn't start depreciating right away &mdash; there's a six-month lag while it gets built and switched on. After that it's written off as 70% servers over five years and 30% buildings over fourteen. That includes spending from the last two reported quarters, which is still being switched on when the forecast starts.</li>
+        <li>Costs follow the way SpaceX reports Adjusted EBITDA. Cash operating costs move with revenue. Stock-based compensation, mostly the retention awards from the Cursor acquisition, and depreciation sit below Adjusted EBITDA as separate non-cash costs.</li>
+        <li>Depreciation starts from what SpaceX actually charged in the last reported quarter, for equipment already running, and adds new spending as it comes into service. There's a six-month lag while it gets built and switched on, so spending from the last two reported quarters only starts depreciating once the forecast begins. After that it's written off as 85% servers and satellites over five years and 15% buildings over fourteen, close to the mix of equipment on SpaceX's balance sheet.</li>
+        <li>Compute earns revenue on the average capacity running during each quarter, not the quarter-end figure, so a fast build-out isn't credited with capacity that only switched on in the last few weeks. The run-rate figures annualise quarter-end capacity at that quarter's price.</li>
         <li>Tax is 21% of pre-tax profit once past losses are used up. The model starts with about $37bn of losses to offset, using SpaceX's accumulated deficit as a stand-in for its tax losses, and, as US rules do, lets them shelter at most 80% of any quarter's profit.</li>
         <li>Cash and debt roll forward quarter by quarter. If cash would fall below a $15bn floor, the model borrows the difference at 6.5% a year. Existing debt of $39bn costs 5.5%, and cash on hand earns 4%.</li>
         <li>The balance sheet is deliberately simplified: everything other than cash, property and debt is held flat, and equity is whatever makes the two sides balance. Working capital and deferred revenue aren't modelled. The memo row underneath shows how much of the change in equity is actual profit versus other items.</li>
@@ -560,28 +562,28 @@ const Q = ["Q426","Q127","Q227","Q327","Q427","Q128","Q228","Q328","Q428"];
 const REPORTED = [
   { label: "Q225",
     space: 746, connectivity: 2588, ai: 737,
-    opInc: -970, netIncome: -1008,
+    opInc: -970, netIncome: -1008, adjEbitda: null,
     interestExpense: -411, interestIncome: 98, otherIncome: 413, tax: 138,
     aiNameplateGW: 0.4, aiInfraRevenue: 311,
     totalCapex: 2825, aiCapex: 749 },
 
   { label: "Q126",
     space: 619, connectivity: 3257, ai: 818,
-    opInc: -1943, netIncome: -4276,
+    opInc: -1943, netIncome: -4276, adjEbitda: 1127,
     interestExpense: -664, interestIncome: 213, otherIncome: -1876, tax: 6,
     aiNameplateGW: 1, aiInfraRevenue: null,
     totalCapex: 10107, aiCapex: 7723 },
 
   { label: "Q226",
     space: 962, connectivity: 4291, ai: 2561,
-    opInc: -143, netIncome: -541,
+    opInc: -143, netIncome: -541, adjEbitda: 3538,
     interestExpense: -629, interestIncome: 340, otherIncome: -86, tax: 23,
     aiNameplateGW: 1.4, aiInfraRevenue: 2194,
     totalCapex: 18369, aiCapex: 15828 },
 
   { label: "Q326",
     space: 1767, connectivity: 5248, ai: 7560,
-    opInc: 2791, netIncome: 4404,
+    opInc: 2791, netIncome: 4404, adjEbitda: 8809,
     interestExpense: -675, interestIncome: 873, otherIncome: 1025, tax: -390,
     aiNameplateGW: 1.7, aiInfraRevenue: 7022,
     totalCapex: 19593, aiCapex: 16444,
@@ -599,76 +601,77 @@ const JUMPOFF = REPORTED[REPORTED.length - 1];
 const FIXED = {
   space: {
     revGrowth: [-0.1,0.08,0.08,0.07,0.07,0.06,0.06,0.06,0.05],
-    cogsPct: [0.32,0.31,0.3,0.3,0.29,0.28,0.28,0.27,0.27],
-    rndPct: [0.9,0.8,0.7,0.62,0.55,0.5,0.46,0.42,0.39],
-    sgaPct: [0.1,0.09,0.09,0.09,0.08,0.08,0.08,0.07,0.07],
+    cogsPct: [0.16,0.16,0.16,0.15,0.15,0.15,0.14,0.14,0.14],
+    rndPct: [0.68,0.62,0.57,0.52,0.48,0.44,0.4,0.37,0.34],
+    sgaPct: [0.05,0.05,0.05,0.05,0.045,0.045,0.045,0.04,0.04],
     capexPct: [0.9,0.75,0.65,0.55,0.5,0.45,0.4,0.38,0.35]
   },
   connectivity: {
     subAdds: [1.6,1.6,1.5,1.5,1.4,1.4,1.3,1.3,1.2],
     arpu: [72,71.5,71,70.5,70,69.5,69,68.5,68],
     entGovGrowth: [0.18,0.15,0.13,0.12,0.11,0.1,0.1,0.09,0.09],
-    cogsPct: [0.46,0.45,0.44,0.43,0.42,0.41,0.41,0.4,0.4],
-    rndPct: [0.062,0.06,0.058,0.056,0.055,0.054,0.053,0.052,0.051],
-    sgaPct: [0.058,0.056,0.054,0.052,0.05,0.049,0.048,0.047,0.046],
+    cogsPct: [0.29,0.29,0.28,0.28,0.28,0.27,0.27,0.27,0.26],
+    rndPct: [0.025,0.025,0.024,0.024,0.023,0.023,0.022,0.022,0.021],
+    sgaPct: [0.05,0.05,0.049,0.049,0.048,0.048,0.047,0.047,0.046],
     capexPct: [0.29,0.28,0.27,0.26,0.25,0.24,0.24,0.23,0.23]
   },
   ai: {
-    cogsPct: [0.42,0.4,0.38,0.37,0.36,0.35,0.34,0.33,0.33],
-    rndPct: [0.3,0.27,0.25,0.23,0.21,0.2,0.19,0.18,0.17],
-    sgaPct: [0.13,0.11,0.1,0.09,0.09,0.08,0.08,0.08,0.07],
+    cogsPct: [0.25,0.24,0.23,0.22,0.22,0.21,0.21,0.2,0.2],
+    rndPct: [0.1,0.09,0.09,0.08,0.08,0.08,0.07,0.07,0.07],
+    sgaPct: [0.06,0.05,0.05,0.05,0.04,0.04,0.04,0.04,0.04],
     monetizable: [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5],
     grok: [900,1150,1400,1650,1900,2150,2400,2650,2900],
     cursor: [1200,1500,1800,2100,2400,2700,3000,3300,3600],
     adGrowth: [0,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.02]
   },
   financing: {
-    itShare: 0.7,
+    itShare: 0.85,
     itLife: 20,
     facilityLife: 56,
-    legacyAddback: 6007,
     existingDebt: 38844,
     existingRate: 0.0695,
     newRate: 0.0585,
     cashYield: 0.04,
     minCash: 15000,
     openingCash: 89855,
-    exitMonthShare: 0.38,
+    exitMonthShare: 0.35,
     arrTarget: 100000,
     otherIncome: [-50,-30,-20,-10,0,0,0,0,0],
     taxRate: 0.21,
     nolOpening: 37448,
-    nolCap: 0.8
+    nolCap: 0.8,
+    legacyDA: 3644,
+    sbc: [3500,3450,3400,3350,3300,3250,3200,3150,3100]
   }
 };
 
 const CASES = {
   1: {
     name: "Case 1 — Conservative",
-    basis: "Price per rented watt starts near the ~$27-30 a year Q3 2026 actually realised and erodes to $18 by Q428 as supply catches up. Capex $30bn falling to $21bn per GW. Management's base build-out.",
+    basis: "Price per rented watt starts near the ~$27-30 a year Q3 2026 actually realised and erodes to $12 by Q428, what neoclouds earn today (HSBC: ~$12m per MW a year). Capex $30bn falling to $21bn per GW. Management's base build-out.",
     gw: [2.8,4,6.5,9.5,13,15,17,19,21],
-    rate: [7500,7500,7250,6750,6250,5750,5250,4750,4500],
-    spot: [8000,8000,7500,7000,6500,6000,5500,5000,4750],
+    rate: [7500,7250,6750,6000,5250,4500,3750,3250,3000],
+    spot: [8000,7500,7000,6250,5500,4750,4000,3500,3250],
     capexGW: [30000,28000,26500,25000,24000,23000,22000,21500,21000],
-    ltr: 4500
+    ltr: 3000
   },
   2: {
     name: "Case 2 — Guidance-consistent",
-    basis: "Calibrated to the Q3 2026 call: ~$100bn Dec-2026 ARR, Q1 2027 revenue inside the $33-37bn guide, and pricing 'slightly above the high end of the $30-50 per watt range' ($52) through 2027, easing to $44 by Q428. Capex $31bn per GW in Q426 lands inside the $35-40bn Q4 capex guide; payback under a year. Build-out ~13 GW by end-2027, which Musk is 'highly confident' of.",
+    basis: "Calibrated to the Q3 2026 call, with revenue earned on average capacity in each quarter: $41 per rented watt a year in Q426 rising to $55, 'slightly above the high end of the $30-50 per watt range', through 2027, easing to $46 by Q428. Lands Q4 capex at $37bn (guide $35-40bn), the Dec-2026 run-rate at ~$100bn and Q1 2027 revenue at $35bn (guide $33-37bn); payback under a year. Build-out ~13 GW by end-2027, which Musk is 'highly confident' of.",
     gw: [2.8,4,6.5,9.5,13,15,17,19,21],
-    rate: [8250,11750,13000,13000,13000,12500,12000,11500,11000],
-    spot: [12500,13500,13750,13750,13500,13000,12500,12000,11500],
+    rate: [10250,13750,13750,13750,13500,13000,12500,12000,11500],
+    spot: [13750,14250,14250,14000,13750,13250,12750,12250,11750],
     capexGW: [31000,31000,30000,29000,28000,27000,26000,25000,24000],
-    ltr: 11000
+    ltr: 11500
   },
   3: {
     name: "Case 3 — High-capex stress",
     basis: "Case 2 pricing and build-out, but capex stuck at $55bn per GW, what Q3 2026 actually cost ($16.4bn of SI capex for 0.3 GW added), and never coming down.",
     gw: [2.8,4,6.5,9.5,13,15,17,19,21],
-    rate: [8250,11750,13000,13000,13000,12500,12000,11500,11000],
-    spot: [12500,13500,13750,13750,13500,13000,12500,12000,11500],
+    rate: [10250,13750,13750,13750,13500,13000,12500,12000,11500],
+    spot: [13750,14250,14250,14000,13750,13250,12750,12250,11750],
     capexGW: [55000,55000,55000,55000,55000,55000,55000,55000,55000],
-    ltr: 11000
+    ltr: 11500
   },
   4: {
     name: "Case 4 — Contract run-rate, then re-pricing",
@@ -683,10 +686,10 @@ const CASES = {
     name: "Case 5 — Stretch build-out",
     basis: "Case 2 pricing and capex with Musk's stretch: ~20 GW of compute by end-2027 (he plans ~20 GW of incremental power, 'so 23 gigawatts roughly in total' of power), then +2 GW a quarter.",
     gw: [2.8,4.3,8,13.5,20,22,24,26,28],
-    rate: [8250,11750,13000,13000,13000,12500,12000,11500,11000],
-    spot: [12500,13500,13750,13750,13500,13000,12500,12000,11500],
+    rate: [10250,13750,13750,13750,13500,13000,12500,12000,11500],
+    spot: [13750,14250,14250,14000,13750,13250,12750,12250,11750],
     capexGW: [31000,31000,30000,29000,28000,27000,26000,25000,24000],
-    ltr: 11000
+    ltr: 11500
   }
 };
 
@@ -746,7 +749,9 @@ function computeModel(inputs) {
 
   const monetizable = f.ai.monetizable;
   const nameplate = gw;
-  const revGenGW = nameplate.map((g,t)=>g*monetizable[t]);
+  // Revenue accrues on the average capacity running during the quarter, so
+  // capacity switched on late in a quarter is not credited with a full quarter.
+  const revGenGW = nameplate.map((g,t)=>((t>0 ? nameplate[t-1] : JUMPOFF.aiNameplateGW) + g)/2*monetizable[t]);
   const infraRev = new Array(N).fill(0);
   const effRate = new Array(N).fill(0);
   const incrementalGW = new Array(N).fill(0);
@@ -810,12 +815,17 @@ function computeModel(inputs) {
     totCapex.push(spCapex[t]+coCapex[t]+aiCapex[t]);
   }
 
+  // Cost ratios are cash operating costs (SpaceX's Adjusted EBITDA basis), so
+  // totOpIncBeforeDep is Adjusted EBITDA. Stock comp and depreciation are
+  // charged below it as separate non-cash lines.
+  //
+  // Depreciation = the jump-off quarter's actual D&A on assets already in
+  // service (held flat) + capex as it switches on. Capex from the last LAG
+  // reported quarters was not yet in service at the jump-off, so it is seeded
+  // in and starts depreciating inside the forecast window.
   const rate = f.financing.itShare/f.financing.itLife + (1-f.financing.itShare)/f.financing.facilityLife;
   const LAG = 2;   // quarters from spend to switch-on
   const depFlow = totCapex.map(c=>c*rate);
-  // Capex from the last LAG reported quarters is still being switched on at the
-  // jump-off; the cost ratios only carry depreciation on what was already in
-  // service, so this spend starts depreciating inside the forecast window.
   const seedFlow = [];
   for (let k=LAG; k>=1; k--){
     const r = REPORTED.find(x=>x.label===shiftQuarter(Q[0], -k));
@@ -827,7 +837,14 @@ function computeModel(inputs) {
     const prevCum = t>0?inServiceCum[t-1]:0;
     inServiceCum[t] = prevCum + flowAt(t-LAG);
   }
-  const totOpInc = totOpIncBeforeDep.map((v,t)=>v-inServiceCum[t]);
+  const dep = inServiceCum.map(v=>v + f.financing.legacyDA);
+  const sbc = f.financing.sbc;
+  const totOpInc = totOpIncBeforeDep.map((v,t)=>v - sbc[t] - dep[t]);
+
+  // Exit run-rate: compute annualised at quarter-end capacity and price; the
+  // other businesses at the exit month's share of the quarter.
+  const arr = totRev.map((r,t)=>(r - infraRev[t])*f.financing.exitMonthShare*12
+                                 + nameplate[t]*monetizable[t]*effRate[t]*4);
 
   // Tax: a flat rate on pre-tax profit, after past losses are used. As under US
   // rules, carried-forward losses shelter at most nolCap of each quarter's profit;
@@ -852,7 +869,7 @@ function computeModel(inputs) {
       nol -= pt;
     }
     pretax.push(pt); tax.push(tx); nolEnd.push(nol);
-    const cfo = totOpIncBeforeDep[t] + f.financing.legacyAddback - tx + intInc[t] + intExp[t];
+    const cfo = totOpIncBeforeDep[t] - tx + intInc[t] + intExp[t];
     cfoProxy.push(cfo);
     const cbf = prevCash + cfo - totCapex[t];
     cashBeforeFin.push(cbf);
@@ -869,7 +886,7 @@ function computeModel(inputs) {
   const netIncome = pretax.map((pt,t)=>pt - tax[t]);
 
   out.total = {revenue:totRev, cogs:totCogs, rnd:totRnd, sga:totSga, opIncBeforeDep:totOpIncBeforeDep,
-    dep:inServiceCum, opInc:totOpInc, intExp, intInc, otherIncome:f.financing.otherIncome, pretax, tax, nolEnd,
+    dep, depNew:inServiceCum, sbc, arr, opInc:totOpInc, intExp, intInc, otherIncome:f.financing.otherIncome, pretax, tax, nolEnd,
     netIncome, capex:totCapex, cfoProxy, newDebt, closingCash, closingDebt, totalDebtOut, openingCash, openingDebt};
 
   const B0 = JUMPOFF.balance;
@@ -878,7 +895,7 @@ function computeModel(inputs) {
   const ppe=[], totalAssets=[], totalLiab=[], equity=[], cumNI=[], otherEquityMovement=[];
   let prevPPE = B0.ppe, prevEquity = B0.equity, cum=0;
   for (let t=0;t<N;t++){
-    const p = prevPPE + totCapex[t] - inServiceCum[t];
+    const p = prevPPE + totCapex[t] - dep[t];
     ppe.push(p);
     const ta = closingCash[t] + p + otherAssets;
     totalAssets.push(ta);
@@ -929,7 +946,7 @@ function hist(field){ return REPORTED.map(r => r[field] ?? null); }
 
 /* ============================= FORMATTERS ============================= */
 function fmt0(x){ if(x===undefined||x===null||isNaN(x)) return '–'; if(Math.abs(x)<0.5) return '–'; const v=Math.round(x); const s=Math.abs(v).toLocaleString('en-US'); return v<0? '('+s+')': s; }
-function fmtPct(x, d){ if(x===undefined||isNaN(x)) return '–'; return (x*100).toFixed(d===undefined?1:d)+'%'; }
+function fmtPct(x, d){ if(x==null||isNaN(x)) return '–'; return (x*100).toFixed(d===undefined?1:d)+'%'; }
 function fmtAutoUSD(x){
   const abs=Math.abs(x);
   if(abs>=1000) return (x<0?'-':'')+'$'+(abs/1000).toFixed(abs>=10000?0:1)+'B';
@@ -1237,7 +1254,7 @@ function renderKPIs(m){
   // Labels and indices come from Q so the cards stay right after a roll-forward.
   const firstQ = Q[0], lastQ = Q[lastIdx];
   const iDec26 = Q.indexOf('Q426');
-  const arrDec26 = iDec26<0 ? null : m.total.revenue[iDec26]*FIXED.financing.exitMonthShare*12;
+  const arrDec26 = iDec26<0 ? null : m.total.arr[iDec26];
   const arrGap = arrDec26===null ? 0 : arrDec26-FIXED.financing.arrTarget;
   const payback = state.capexGWTable[0] / ((state.mode==='longterm'?state.rateTable[0]:state.spotTable[0])*4);
 
@@ -1291,10 +1308,13 @@ function renderPLTable(m){
   body += rowHTML('Total revenue', cat(totRevHist, m.total.revenue), {rowClass:'total', hist:HIST});
 
   body += sectionRow('Costs &amp; expenses', allQ.length);
-  body += rowHTML('Cost of revenue', cat(zeros, m.total.cogs), {hist:HIST});
-  body += rowHTML('Research &amp; development', cat(zeros, m.total.rnd), {hist:HIST});
-  body += rowHTML('Selling, general &amp; admin', cat(zeros, m.total.sga), {hist:HIST});
-  body += rowHTML('Depreciation, recent &amp; new capex', cat(zeros, m.total.dep), {hist:HIST});
+  body += rowHTML('Cost of revenue (cash)', cat(zeros, m.total.cogs), {hist:HIST});
+  body += rowHTML('Research &amp; development (cash)', cat(zeros, m.total.rnd), {hist:HIST});
+  body += rowHTML('Selling, general &amp; admin (cash)', cat(zeros, m.total.sga), {hist:HIST});
+  body += rowHTML('Adjusted EBITDA', cat(hist('adjEbitda'), m.total.opIncBeforeDep), {rowClass:'total', hist:HIST});
+  body += rowHTML('  Adjusted EBITDA margin %', cat(hist('adjEbitda').map((v,i)=>v==null?null:v/totRevHist[i]), m.total.opIncBeforeDep.map((v,i)=>v/m.total.revenue[i])), {pct:true, hist:HIST});
+  body += rowHTML('Stock-based compensation', cat(zeros, m.total.sbc), {hist:HIST});
+  body += rowHTML('Depreciation &amp; amortization', cat(zeros, m.total.dep), {hist:HIST});
 
   const opIncHist = hist('opInc');
   body += rowHTML('Income (loss) from operations', cat(opIncHist, m.total.opInc), {rowClass:'total', hist:HIST});
@@ -1315,7 +1335,7 @@ function renderPLTable(m){
   body += rowHTML('AI realized $/GW/yr (blended)', cat(REPORTED.map(()=>null), m.ai.effRate.map(v=>v*4)), {rowClass:'memo', hist:HIST});
   body += rowHTML('Total capex', cat(hist('totalCapex'), m.total.capex), {rowClass:'memo', hist:HIST});
   body += rowHTML('  of which AI capex', cat(hist('aiCapex'), m.ai.capex), {rowClass:'memo', hist:HIST});
-  body += rowHTML('ARR (exit-month revenue x 12)', REPORTED.map(()=>null).concat(m.total.revenue.map(v=>v*FIXED.financing.exitMonthShare*12)), {rowClass:'memo', hist:HIST});
+  body += rowHTML('ARR (exit run-rate)', REPORTED.map(()=>null).concat(m.total.arr), {rowClass:'memo', hist:HIST});
   body += rowHTML('Tax losses left to carry forward', REPORTED.map(()=>null).concat(m.total.nolEnd), {rowClass:'memo', hist:HIST});
   body += '</tbody>';
 
@@ -1675,37 +1695,40 @@ fetch('/api/assumptions')
   const GROUPS = [
     { title:'Space segment', rows:[
       { path:'space.revGrowth', shape:QTR, kind:'pct', label:'Revenue growth, QoQ' },
-      { path:'space.cogsPct',   shape:QTR, kind:'pct', label:'Cost of revenue, % of revenue' },
-      { path:'space.rndPct',    shape:QTR, kind:'pct', label:'R&D, % of revenue' },
-      { path:'space.sgaPct',    shape:QTR, kind:'pct', label:'SG&A, % of revenue' },
+      { path:'space.cogsPct',   shape:QTR, kind:'pct', label:'Cash cost of revenue, % of revenue' },
+      { path:'space.rndPct',    shape:QTR, kind:'pct', label:'Cash R&D, % of revenue' },
+      { path:'space.sgaPct',    shape:QTR, kind:'pct', label:'Cash SG&A, % of revenue' },
       { path:'space.capexPct',  shape:QTR, kind:'pct', label:'Capex, % of revenue' },
     ]},
     { title:'Connectivity segment', rows:[
       { path:'connectivity.subAdds',      shape:QTR, kind:'num', label:'Net subscriber adds', unit:'mm' },
       { path:'connectivity.arpu',         shape:QTR, kind:'num', label:'Consumer ARPU', unit:'$/mo' },
       { path:'connectivity.entGovGrowth', shape:QTR, kind:'pct', label:'Enterprise & gov growth, QoQ' },
-      { path:'connectivity.cogsPct',      shape:QTR, kind:'pct', label:'Cost of revenue, % of revenue' },
-      { path:'connectivity.rndPct',       shape:QTR, kind:'pct', label:'R&D, % of revenue' },
-      { path:'connectivity.sgaPct',       shape:QTR, kind:'pct', label:'SG&A, % of revenue' },
+      { path:'connectivity.cogsPct',      shape:QTR, kind:'pct', label:'Cash cost of revenue, % of revenue' },
+      { path:'connectivity.rndPct',       shape:QTR, kind:'pct', label:'Cash R&D, % of revenue' },
+      { path:'connectivity.sgaPct',       shape:QTR, kind:'pct', label:'Cash SG&A, % of revenue' },
       { path:'connectivity.capexPct',     shape:QTR, kind:'pct', label:'Capex, % of revenue' },
     ]},
     { title:'AI segment', rows:[
       { path:'ai.monetizable', shape:QTR, kind:'pct', label:'Share of compute rented to customers' },
-      { path:'ai.cogsPct',     shape:QTR, kind:'pct', label:'Cost of revenue, % of revenue' },
-      { path:'ai.rndPct',      shape:QTR, kind:'pct', label:'R&D, % of revenue' },
-      { path:'ai.sgaPct',      shape:QTR, kind:'pct', label:'SG&A, % of revenue' },
+      { path:'ai.cogsPct',     shape:QTR, kind:'pct', label:'Cash cost of revenue, % of revenue' },
+      { path:'ai.rndPct',      shape:QTR, kind:'pct', label:'Cash R&D, % of revenue' },
+      { path:'ai.sgaPct',      shape:QTR, kind:'pct', label:'Cash SG&A, % of revenue' },
       { path:'ai.grok',        shape:QTR, kind:'num', label:'Grok subscription revenue', unit:'$mm/qtr' },
       { path:'ai.cursor',      shape:QTR, kind:'num', label:'Cursor revenue', unit:'$mm/qtr' },
       { path:'ai.adGrowth',    shape:QTR, kind:'pct', label:'Advertising growth, QoQ' },
     ]},
+    { title:'Non-cash costs', rows:[
+      { path:'financing.sbc',           shape:QTR, kind:'num', label:'Stock-based compensation', unit:'$mm/qtr' },
+      { path:'financing.legacyDA',      shape:ONE, kind:'num', label:'D&A on assets in service at jump-off', unit:'$mm/qtr' },
+      { path:'financing.itShare',       shape:ONE, kind:'pct', label:'Short-lived share of capex (servers, satellites)' },
+      { path:'financing.itLife',        shape:ONE, kind:'num', label:'Short-lived asset life', unit:'quarters' },
+      { path:'financing.facilityLife',  shape:ONE, kind:'num', label:'Facility life', unit:'quarters' },
+    ]},
     { title:'Below the line', rows:[
       { path:'financing.otherIncome', shape:QTR, kind:'num', label:'Other income (expense), net', unit:'$mm/qtr' },
     ]},
-    { title:'Financing & depreciation', rows:[
-      { path:'financing.itShare',       shape:ONE, kind:'pct', label:'IT equipment share of capex' },
-      { path:'financing.itLife',        shape:ONE, kind:'num', label:'IT equipment life', unit:'quarters' },
-      { path:'financing.facilityLife',  shape:ONE, kind:'num', label:'Facility life', unit:'quarters' },
-      { path:'financing.legacyAddback', shape:ONE, kind:'num', label:'Legacy non-cash add-back', unit:'$mm/qtr' },
+    { title:'Financing & tax', rows:[
       { path:'financing.existingDebt',  shape:ONE, kind:'num', label:'Existing debt', unit:'$mm' },
       { path:'financing.existingRate',  shape:ONE, kind:'pct', label:'Rate on existing debt', unit:'/yr' },
       { path:'financing.newRate',       shape:ONE, kind:'pct', label:'Rate on new debt', unit:'/yr' },
@@ -1826,7 +1849,7 @@ fetch('/api/assumptions')
     const reported = (rows)=> rows.map(r=>{
       const lines = ['  { label: '+JSON.stringify(r.label)+','];
       lines.push('    space: '+num(r.space)+', connectivity: '+num(r.connectivity)+', ai: '+num(r.ai)+',');
-      lines.push('    opInc: '+num(r.opInc)+', netIncome: '+num(r.netIncome)+',');
+      lines.push('    opInc: '+num(r.opInc)+', netIncome: '+num(r.netIncome)+', adjEbitda: '+(r.adjEbitda==null?'null':num(r.adjEbitda))+',');
       lines.push('    interestExpense: '+num(r.interestExpense)+', interestIncome: '+num(r.interestIncome)+
                  ', otherIncome: '+num(r.otherIncome)+', tax: '+num(r.tax)+',');
       lines.push('    aiNameplateGW: '+num(r.aiNameplateGW)+', aiInfraRevenue: '+

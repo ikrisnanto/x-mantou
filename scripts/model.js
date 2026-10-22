@@ -82,7 +82,7 @@ function reportedLiteral(REPORTED) {
   return REPORTED.map((r) => {
     const lines = [`  { label: ${JSON.stringify(r.label)},`];
     lines.push(`    space: ${num(r.space)}, connectivity: ${num(r.connectivity)}, ai: ${num(r.ai)},`);
-    lines.push(`    opInc: ${num(r.opInc)}, netIncome: ${num(r.netIncome)},`);
+    lines.push(`    opInc: ${num(r.opInc)}, netIncome: ${num(r.netIncome)}, adjEbitda: ${r.adjEbitda == null ? 'null' : num(r.adjEbitda)},`);
     lines.push(
       `    interestExpense: ${num(r.interestExpense)}, interestIncome: ${num(r.interestIncome)}, ` +
         `otherIncome: ${num(r.otherIncome)}, tax: ${num(r.tax)},`

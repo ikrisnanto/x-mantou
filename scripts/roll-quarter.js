@@ -27,7 +27,7 @@ const value = (name) => {
 const TEMPLATE = {
   label: '',
   space: 0, connectivity: 0, ai: 0,
-  opInc: 0, netIncome: 0,
+  opInc: 0, netIncome: 0, adjEbitda: null,
   interestExpense: 0, interestIncome: 0, otherIncome: 0, tax: 0,
   aiNameplateGW: 0, aiInfraRevenue: null,
   totalCapex: 0, aiCapex: 0,

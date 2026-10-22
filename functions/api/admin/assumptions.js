@@ -22,7 +22,7 @@ const ALLOWED = {
   'financing.otherIncome': 'q',
   'financing.taxRate': 's', 'financing.nolOpening': 's', 'financing.nolCap': 's',
   'financing.itShare': 's', 'financing.itLife': 's', 'financing.facilityLife': 's',
-  'financing.legacyAddback': 's', 'financing.existingDebt': 's', 'financing.existingRate': 's',
+  'financing.legacyDA': 's', 'financing.sbc': 'q', 'financing.existingDebt': 's', 'financing.existingRate': 's',
   'financing.newRate': 's', 'financing.cashYield': 's', 'financing.minCash': 's', 'financing.openingCash': 's',
   'financing.exitMonthShare': 's', 'financing.arrTarget': 's',
 };
